@@ -4,6 +4,7 @@ package com.maelespecieros.backend.security;
 import java.util.List;
 
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -32,6 +33,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
 
+
+    @Value("${cors.allowed-origin}")
+    private String allowedOrigin;
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -270,7 +274,7 @@ public class SecurityConfig {
 
                 List.of(
 
-                        "http://localhost:4200"
+                        allowedOrigin
 
                 )
 

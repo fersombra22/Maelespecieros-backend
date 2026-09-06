@@ -87,9 +87,9 @@ public class UsuarioController {
 
 
 
-    // ADMIN Y EMPLEADO PUEDEN LISTAR
+    // SOLO ADMIN PUEDEN LISTAR
 
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','EMPLEADO')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
     @GetMapping
     public ResponseEntity<ApiResponse<Page<UsuarioResponse>>> listar(
             @RequestParam(defaultValue = "0") int page,
@@ -122,9 +122,9 @@ public class UsuarioController {
 
 
 
-    // ADMIN Y EMPLEADO PUEDEN CONSULTAR
+    // SOLO ADMIN PUEDEN CONSULTAR
 
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','EMPLEADO')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<UsuarioResponse>> obtener(
 
