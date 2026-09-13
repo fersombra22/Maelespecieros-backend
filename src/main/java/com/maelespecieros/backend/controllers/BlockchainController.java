@@ -65,16 +65,21 @@ public class BlockchainController {
     public ResponseEntity<Map<String, Object>> verificar(){
         
         // 1. Verificamos la inmutabilidad de la cadena (Auditoría)
-        boolean cadenaValida = blockchainService.verificarCadena();
+        List<AnomaliaAuditoriaResponse> anomaliasCadena = blockchainService.verificarCadenaDetallado();
         
         // 2. Verificamos la integridad cruzada (Las filas de SQLite)
-        List<AnomaliaAuditoriaResponse> anomalias = verificarIntegridadDatosBD();
+        List<AnomaliaAuditoriaResponse> anomaliasBD = verificarIntegridadDatosBD();
+
+        // Juntar todas las anomalías
+        List<AnomaliaAuditoriaResponse> anomalias = new ArrayList<>();
+        anomalias.addAll(anomaliasCadena);
+        anomalias.addAll(anomaliasBD);
 
         // 3. Empaquetamos todo para Angular
         Map<String, Object> response = new HashMap<>();
         
         // El sistema es válido SOLO si la cadena está sana y NO hay anomalías de BD
-        boolean sistemaIntegro = cadenaValida && anomalias.isEmpty();
+        boolean sistemaIntegro = anomalias.isEmpty();
         
         response.put("valida", sistemaIntegro);
         response.put("anomalias", anomalias);

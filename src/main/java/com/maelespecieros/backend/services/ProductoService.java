@@ -69,6 +69,9 @@ public interface ProductoService {
             Long id
     );
 
-
+    void aumentoMasivo(
+            List<Long> ids,
+            java.math.BigDecimal porcentaje
+    );
 
 }

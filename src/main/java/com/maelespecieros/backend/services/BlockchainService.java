@@ -62,6 +62,17 @@ public interface BlockchainService {
      */
     boolean verificarCadena();
 
+    /*
+     * =====================================================
+     * VERIFICACIÓN COMPLETA DETALLADA
+     * Recorre toda la cadena y retorna una lista
+     * de anomalías encontradas.
+     * =====================================================
+     */
+    java.util.List<com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse> verificarCadenaDetallado();
+
+
+
 
 
 

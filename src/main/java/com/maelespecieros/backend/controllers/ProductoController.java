@@ -318,5 +318,25 @@ public class ProductoController {
     }
 
 
+    // SOLO ADMIN Y SUPER ADMIN
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+    @PutMapping("/aumento-masivo")
+    public ResponseEntity<ApiResponse<Void>> aumentoMasivo(
+            @Valid @RequestBody com.maelespecieros.backend.dto.request.AumentoMasivoRequest request
+    ) {
+
+        service.aumentoMasivo(request.ids(), request.porcentaje());
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Precios actualizados correctamente",
+                        null
+                )
+        );
+    }
+
+
+
 
 }

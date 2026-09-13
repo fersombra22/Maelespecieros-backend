@@ -51,5 +51,33 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             LocalDateTime fin
     );
 
+    @Query("""
+            SELECT COALESCE(SUM(v.total), 0)
+            FROM Venta v
+            WHERE v.estado = 'COMPLETADA'
+            AND v.fecha >= :inicio AND v.fecha <= :fin
+            """)
+    BigDecimal obtenerTotalFacturadoEntreFechas(LocalDateTime inicio, LocalDateTime fin);
+
+    @Query("""
+            SELECT new com.maelespecieros.backend.dto.response.VentasPorMetodoPagoResponse(v.formaPago, SUM(v.total))
+            FROM Venta v
+            WHERE v.estado = 'COMPLETADA'
+            GROUP BY v.formaPago
+            """)
+    List<com.maelespecieros.backend.dto.response.VentasPorMetodoPagoResponse> obtenerVentasPorMetodoPago();
+
+    @Query("""
+            SELECT new com.maelespecieros.backend.dto.response.TopProductoResponse(p.nombre, SUM(d.cantidad), SUM(d.subtotal))
+            FROM DetalleVenta d
+            JOIN d.venta v
+            JOIN d.producto p
+            WHERE v.estado = 'COMPLETADA'
+            GROUP BY p.nombre
+            ORDER BY SUM(d.cantidad) DESC
+            LIMIT 5
+            """)
+    List<com.maelespecieros.backend.dto.response.TopProductoResponse> obtenerTopProductos();
+
 
 }

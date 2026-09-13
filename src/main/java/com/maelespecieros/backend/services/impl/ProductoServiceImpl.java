@@ -476,4 +476,33 @@ public class ProductoServiceImpl
 
     }
 
+    @Override
+    public void aumentoMasivo(List<Long> ids, BigDecimal porcentaje) {
+        if (ids == null || ids.isEmpty() || porcentaje == null || porcentaje.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        BigDecimal factorMultiplicador = BigDecimal.ONE.add(porcentaje.divide(new BigDecimal("100"), 4, java.math.RoundingMode.HALF_UP));
+
+        List<Producto> productos = repository.findAllById(ids);
+        
+        for (Producto producto : productos) {
+            BigDecimal precioActual = producto.getPrecioEfectivo();
+            if (precioActual != null) {
+                BigDecimal nuevoPrecio = precioActual.multiply(factorMultiplicador).setScale(2, java.math.RoundingMode.HALF_UP);
+                producto.setPrecioEfectivo(nuevoPrecio);
+                repository.save(producto);
+
+                blockchainService.registrarBloque(
+                        getUsuarioAutenticado(),
+                        "AUMENTO_MASIVO",
+                        "Precio aumentado un " + porcentaje + "% al producto: " + producto.getCodigoProducto(),
+                        "PRODUCTO",
+                        producto.getCodigoProducto(),
+                        producto
+                );
+            }
+        }
+    }
+
 }

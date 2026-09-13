@@ -1,6 +1,7 @@
 package com.maelespecieros.backend.dto.response;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public record DashboardResponse(
 
@@ -12,7 +13,13 @@ public record DashboardResponse(
 
         Long totalVentas,
 
-        BigDecimal totalFacturado
+        BigDecimal totalFacturado,
+        
+        BigDecimal porcentajeVariacionMensual,
+        
+        List<TopProductoResponse> topProductos,
+        
+        List<VentasPorMetodoPagoResponse> ventasPorMetodoPago
 
 ) {
 }
