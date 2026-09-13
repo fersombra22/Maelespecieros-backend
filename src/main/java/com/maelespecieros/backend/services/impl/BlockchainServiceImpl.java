@@ -578,6 +578,98 @@ public class BlockchainServiceImpl implements BlockchainService {
         return cadenaValida;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<AnomaliaAuditoriaResponse> verificarCadenaDetallado() {
+        List<AnomaliaAuditoriaResponse> anomalias = new ArrayList<>();
+        List<BlockchainAudit> bloques = repository.findAll(Sort.by(Sort.Direction.ASC, "id"));
+
+        if (bloques.isEmpty()) {
+            return anomalias;
+        }
+
+        String hashAnterior = HASH_GENESIS;
+
+        for (BlockchainAudit bloque : bloques) {
+            boolean datosValidos = validarBloque(bloque);
+            if (!datosValidos) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "BLOCKCHAIN",
+                    bloque.getUuid(),
+                    "Datos Básicos (Usuario, Acción, Tipo, etc.)",
+                    "Validación Estructural de Bloque",
+                    "Datos Faltantes o Nulos",
+                    "Alerta: El bloque " + bloque.getId() + " no tiene todos los datos obligatorios."
+                ));
+            }
+
+            boolean hashAnteriorValido = bloque.getHashAnterior() != null &&
+                    MessageDigest.isEqual(
+                            hashAnterior.getBytes(StandardCharsets.UTF_8),
+                            bloque.getHashAnterior().getBytes(StandardCharsets.UTF_8)
+                    );
+
+            if (!hashAnteriorValido) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "BLOCKCHAIN",
+                    bloque.getUuid(),
+                    "Hash Anterior",
+                    "Inmutabilidad de la Cadena",
+                    "Ruptura de Enlace",
+                    "Alerta: El enlace con el bloque anterior fue roto. Bloque: " + bloque.getId()
+                ));
+            }
+
+            String hashCalculado = null;
+            boolean hashActualValido = false;
+            if (bloque.getHashActual() != null) {
+                hashCalculado = generarHash(construirContenidoHash(bloque));
+                hashActualValido = MessageDigest.isEqual(
+                        hashCalculado.getBytes(StandardCharsets.UTF_8),
+                        bloque.getHashActual().getBytes(StandardCharsets.UTF_8)
+                );
+            }
+
+            if (!hashActualValido) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "BLOCKCHAIN",
+                    bloque.getUuid(),
+                    "Hash Actual",
+                    "Firma SHA-256",
+                    "Hash No Coincide",
+                    "Alerta: El hash SHA-256 del bloque " + bloque.getId() + " no coincide con el contenido real. El contenido del bloque fue modificado externamente."
+                ));
+            }
+
+            String hmacCalculado = null;
+            boolean hmacValido = false;
+            if (bloque.getFirmaHmac() != null) {
+                hmacCalculado = generarHmac(construirContenidoHmac(bloque));
+                hmacValido = MessageDigest.isEqual(
+                        hmacCalculado.getBytes(StandardCharsets.UTF_8),
+                        bloque.getFirmaHmac().getBytes(StandardCharsets.UTF_8)
+                );
+            }
+
+            if (!hmacValido) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "BLOCKCHAIN",
+                    bloque.getUuid(),
+                    "Firma HMAC",
+                    "Autenticidad HMAC",
+                    "Firma Inválida",
+                    "Alerta: La firma HMAC del bloque " + bloque.getId() + " es inválida. Esto indica falsificación."
+                ));
+            }
+
+            if (bloque.getHashActual() != null) {
+                hashAnterior = bloque.getHashActual();
+            }
+        }
+
+        return anomalias;
+    }
+
 
     /*
      * =====================================================

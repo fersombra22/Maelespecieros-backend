@@ -43,6 +43,25 @@ public class DashboardServiceImpl implements DashboardService {
 
         BigDecimal totalFacturado =
                 ventaRepository.obtenerTotalFacturado();
+                
+        // Variacion Mensual
+        java.time.LocalDateTime ahora = java.time.LocalDateTime.now();
+        java.time.LocalDateTime inicioMesActual = ahora.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+        
+        java.time.LocalDateTime inicioMesAnterior = inicioMesActual.minusMonths(1);
+        java.time.LocalDateTime finMesAnterior = inicioMesActual.minusSeconds(1);
+        
+        BigDecimal facturadoMesActual = ventaRepository.obtenerTotalFacturadoEntreFechas(inicioMesActual, ahora);
+        BigDecimal facturadoMesAnterior = ventaRepository.obtenerTotalFacturadoEntreFechas(inicioMesAnterior, finMesAnterior);
+        
+        BigDecimal porcentajeVariacionMensual = BigDecimal.ZERO;
+        if (facturadoMesAnterior.compareTo(BigDecimal.ZERO) > 0) {
+            porcentajeVariacionMensual = facturadoMesActual.subtract(facturadoMesAnterior)
+                    .divide(facturadoMesAnterior, 4, java.math.RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"));
+        } else if (facturadoMesActual.compareTo(BigDecimal.ZERO) > 0) {
+            porcentajeVariacionMensual = new BigDecimal("100"); // 100% growth if previous was 0
+        }
 
         return new DashboardResponse(
 
@@ -54,7 +73,13 @@ public class DashboardServiceImpl implements DashboardService {
 
                 totalVentas,
 
-                totalFacturado
+                totalFacturado != null ? totalFacturado : BigDecimal.ZERO,
+                
+                porcentajeVariacionMensual,
+                
+                ventaRepository.obtenerTopProductos(),
+                
+                ventaRepository.obtenerVentasPorMetodoPago()
 
         );
 

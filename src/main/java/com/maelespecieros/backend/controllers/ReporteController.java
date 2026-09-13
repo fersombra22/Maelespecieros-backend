@@ -23,7 +23,19 @@ public class ReporteController {
 
         return crearRespuesta(
                 service.generarReporteProductos(),
-                "productos.pdf");
+                "productos.pdf", MediaType.APPLICATION_PDF);
+
+    }
+
+    @GetMapping("/productos/excel")
+    public ResponseEntity<byte[]> productosExcel(
+        @org.springframework.beans.factory.annotation.Autowired
+        com.maelespecieros.backend.services.ExcelService excelService
+    ) {
+
+        return crearRespuesta(
+                excelService.exportarProductos(),
+                "productos.xlsx", MediaType.valueOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
 
     }
 
@@ -32,7 +44,7 @@ public class ReporteController {
 
         return crearRespuesta(
                 service.generarReporteVentas(),
-                "ventas.pdf");
+                "ventas.pdf", MediaType.APPLICATION_PDF);
 
     }
 
@@ -41,7 +53,7 @@ public class ReporteController {
 
         return crearRespuesta(
                 service.generarReporteStockBajo(),
-                "stock_bajo.pdf");
+                "stock_bajo.pdf", MediaType.APPLICATION_PDF);
 
     }
 
@@ -50,18 +62,18 @@ public class ReporteController {
 
         return crearRespuesta(
                 service.generarReporteAuditoria(),
-                "auditoria.pdf");
+                "auditoria.pdf", MediaType.APPLICATION_PDF);
 
     }
 
     private ResponseEntity<byte[]> crearRespuesta(
             byte[] archivo,
-            String nombreArchivo) {
+            String nombreArchivo,
+            MediaType mediaType) {
 
         HttpHeaders headers = new HttpHeaders();
 
-        headers.setContentType(
-                MediaType.APPLICATION_PDF);
+        headers.setContentType(mediaType);
 
         headers.setContentDisposition(
                 ContentDisposition.inline()
