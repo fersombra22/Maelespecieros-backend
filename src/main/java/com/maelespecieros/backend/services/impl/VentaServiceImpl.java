@@ -20,6 +20,7 @@ import com.maelespecieros.backend.dto.request.VentaRequest;
 
 import com.maelespecieros.backend.dto.response.DetalleVentaResponse;
 import com.maelespecieros.backend.dto.response.VentaResponse;
+import com.maelespecieros.backend.dto.response.ComparacionVentasResponse;
 
 import com.maelespecieros.backend.entities.DetalleVenta;
 import com.maelespecieros.backend.entities.EstadoVenta;
@@ -798,6 +799,8 @@ public class VentaServiceImpl implements VentaService {
             Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
             Font bodyFont = FontFactory.getFont(FontFactory.HELVETICA, 10);
 
+
+
             Paragraph title = new Paragraph("Comprobante de Venta - Mael Especieros", titleFont);
             title.setAlignment(Paragraph.ALIGN_CENTER);
             document.add(title);
@@ -954,5 +957,58 @@ public class VentaServiceImpl implements VentaService {
         );
 
 
+    }
+
+    @Override
+    public ComparacionVentasResponse compararVentas(String periodo) {
+        java.time.LocalDateTime ahora = java.time.LocalDateTime.now();
+        java.time.LocalDateTime inicioActual = ahora;
+        java.time.LocalDateTime inicioAnterior = ahora;
+        java.time.LocalDateTime finAnterior = ahora;
+
+        switch (periodo.toUpperCase()) {
+            case "DIA":
+                inicioActual = ahora.withHour(0).withMinute(0).withSecond(0).withNano(0);
+                inicioAnterior = inicioActual.minusDays(1);
+                finAnterior = inicioActual.minusSeconds(1);
+                break;
+            case "SEMANA":
+                java.time.temporal.WeekFields weekFields = java.time.temporal.WeekFields.of(java.util.Locale.getDefault());
+                int diaDeSemana = ahora.get(weekFields.dayOfWeek());
+                inicioActual = ahora.minusDays(diaDeSemana - 1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+                inicioAnterior = inicioActual.minusWeeks(1);
+                finAnterior = inicioActual.minusSeconds(1);
+                break;
+            case "MES":
+                inicioActual = ahora.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+                inicioAnterior = inicioActual.minusMonths(1);
+                finAnterior = inicioActual.minusSeconds(1);
+                break;
+            case "ANO":
+            case "AÑO":
+                inicioActual = ahora.withDayOfYear(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+                inicioAnterior = inicioActual.minusYears(1);
+                finAnterior = inicioActual.minusSeconds(1);
+                break;
+            default:
+                throw new BusinessException("Periodo no válido. Use DIA, SEMANA, MES, o ANO.");
+        }
+
+        BigDecimal facturadoActual = ventaRepository.obtenerTotalFacturadoEntreFechas(inicioActual, ahora);
+        if (facturadoActual == null) facturadoActual = BigDecimal.ZERO;
+        
+        BigDecimal facturadoAnterior = ventaRepository.obtenerTotalFacturadoEntreFechas(inicioAnterior, finAnterior);
+        if (facturadoAnterior == null) facturadoAnterior = BigDecimal.ZERO;
+
+        BigDecimal porcentajeVariacion = BigDecimal.ZERO;
+        if (facturadoAnterior.compareTo(BigDecimal.ZERO) > 0) {
+            porcentajeVariacion = facturadoActual.subtract(facturadoAnterior)
+                    .divide(facturadoAnterior, 4, java.math.RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"));
+        } else if (facturadoActual.compareTo(BigDecimal.ZERO) > 0) {
+            porcentajeVariacion = new BigDecimal("100");
+        }
+
+        return new ComparacionVentasResponse(facturadoActual, facturadoAnterior, porcentajeVariacion);
     }
 }
