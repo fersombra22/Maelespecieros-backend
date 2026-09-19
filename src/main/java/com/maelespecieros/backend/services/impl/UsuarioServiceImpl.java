@@ -278,19 +278,15 @@ public class UsuarioServiceImpl implements UsuarioService {
 
 
         if(usuario.getRol() == Rol.SUPER_ADMIN
-
                 &&
-
            !esSuperAdminActual()){
-
-
             throw new BusinessException(
-
                     "No puede modificar ROOT."
-
             );
+        }
 
-
+        if(usuario.getUsername().equals("root") && !request.username().equals("root")) {
+            throw new BusinessException("No se puede cambiar el nombre de usuario del administrador principal (root).");
         }
 
 
@@ -445,16 +441,10 @@ public class UsuarioServiceImpl implements UsuarioService {
 
 
 
-        if(usuario.getRol() == Rol.SUPER_ADMIN){
-
-
+        if(usuario.getRol() == Rol.SUPER_ADMIN || usuario.getUsername().equals("root")){
             throw new BusinessException(
-
                     "El usuario ROOT no puede ser desactivado."
-
             );
-
-
         }
 
 

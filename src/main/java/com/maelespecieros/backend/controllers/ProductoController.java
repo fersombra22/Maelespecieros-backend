@@ -19,6 +19,7 @@ import com.maelespecieros.backend.common.Messages;
 import com.maelespecieros.backend.dto.request.ProductoRequest;
 import com.maelespecieros.backend.dto.response.ProductoResponse;
 import com.maelespecieros.backend.services.ProductoService;
+import com.maelespecieros.backend.services.ExcelService;
 
 
 import jakarta.validation.Valid;
@@ -33,14 +34,17 @@ public class ProductoController {
 
 
     private final ProductoService service;
+    private final ExcelService excelService;
 
 
 
     public ProductoController(
-            ProductoService service
+            ProductoService service,
+            ExcelService excelService
     ){
 
         this.service = service;
+        this.excelService = excelService;
 
     }
 
@@ -49,9 +53,9 @@ public class ProductoController {
 
 
 
-    // SOLO ADMIN
+    // SUPER_ADMIN, ADMIN Y EMPLEADO
 
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','EMPLEADO')")
     @PostMapping
     public ResponseEntity<ApiResponse<ProductoResponse>> crear(
 
@@ -336,7 +340,28 @@ public class ProductoController {
         );
     }
 
-
-
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+    @PostMapping(value = "/importar", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<Void>> importarExcel(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file
+    ) {
+        try {
+            excelService.importarProductos(file);
+            return ResponseEntity.ok(
+                    new ApiResponse<>(
+                            true,
+                            "Productos importados correctamente",
+                            null
+                    )
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse<>(
+                            false,
+                            "Error al importar archivo: " + e.getMessage(),
+                            null
+                    ));
+        }
+    }
 
 }

@@ -7,15 +7,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.maelespecieros.backend.services.ReporteService;
+import com.maelespecieros.backend.services.ExcelService;
 
 @RestController
 @RequestMapping("/api/reportes")
 public class ReporteController {
 
     private final ReporteService service;
+    private final ExcelService excelService;
 
-    public ReporteController(ReporteService service) {
+    public ReporteController(ReporteService service, ExcelService excelService) {
         this.service = service;
+        this.excelService = excelService;
     }
 
     @GetMapping("/productos/pdf")
@@ -28,10 +31,7 @@ public class ReporteController {
     }
 
     @GetMapping("/productos/excel")
-    public ResponseEntity<byte[]> productosExcel(
-        @org.springframework.beans.factory.annotation.Autowired
-        com.maelespecieros.backend.services.ExcelService excelService
-    ) {
+    public ResponseEntity<byte[]> productosExcel() {
 
         return crearRespuesta(
                 excelService.exportarProductos(),
