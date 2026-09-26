@@ -29,6 +29,10 @@ public record VentaResponse(
 
         String usuario,
 
+        Long clienteId,
+
+        String clienteNombreCompleto,
+
         List<DetalleVentaResponse> detalles
 
 ) {

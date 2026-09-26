@@ -118,4 +118,12 @@ public class VentaController {
                         response));
     }
 
+    @GetMapping(value = "/comparacion/pdf", produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> descargarComparacionPdf(@RequestParam(defaultValue = "MES") String periodo) {
+        byte[] pdf = service.generarComparacionPdf(periodo);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"comparacion_" + periodo.toLowerCase() + ".pdf\"")
+                .body(pdf);
+    }
+
 }
