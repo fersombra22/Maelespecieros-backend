@@ -28,6 +28,7 @@ import com.maelespecieros.backend.entities.FormaPago;
 import com.maelespecieros.backend.entities.Producto;
 import com.maelespecieros.backend.entities.Usuario;
 import com.maelespecieros.backend.entities.Venta;
+import com.maelespecieros.backend.entities.Cliente;
 
 import com.maelespecieros.backend.exceptions.BusinessException;
 import com.maelespecieros.backend.exceptions.ResourceNotFoundException;
@@ -35,6 +36,7 @@ import com.maelespecieros.backend.exceptions.ResourceNotFoundException;
 import com.maelespecieros.backend.repositories.ProductoRepository;
 import com.maelespecieros.backend.repositories.UsuarioRepository;
 import com.maelespecieros.backend.repositories.VentaRepository;
+import com.maelespecieros.backend.repositories.ClienteRepository;
 
 import com.maelespecieros.backend.services.BlockchainService;
 import com.maelespecieros.backend.services.CodigoService;
@@ -68,6 +70,7 @@ public class VentaServiceImpl implements VentaService {
 
     private final UsuarioRepository usuarioRepository;
 
+    private final ClienteRepository clienteRepository;
 
     private final CodigoService codigoService;
 
@@ -91,6 +94,8 @@ public class VentaServiceImpl implements VentaService {
 
             UsuarioRepository usuarioRepository,
 
+            ClienteRepository clienteRepository,
+
             CodigoService codigoService,
 
             PrecioService precioService,
@@ -106,6 +111,8 @@ public class VentaServiceImpl implements VentaService {
         this.productoRepository = productoRepository;
 
         this.usuarioRepository = usuarioRepository;
+        
+        this.clienteRepository = clienteRepository;
 
         this.codigoService = codigoService;
 
@@ -172,6 +179,11 @@ public class VentaServiceImpl implements VentaService {
 
         Venta venta = new Venta();
 
+        if (request.clienteId() != null) {
+            Cliente cliente = clienteRepository.findById(request.clienteId())
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
+            venta.setCliente(cliente);
+        }
 
         venta.setUsuario(usuario);
 
@@ -808,6 +820,8 @@ public class VentaServiceImpl implements VentaService {
 
             document.add(new Paragraph("Nro Venta: " + venta.getNumeroVenta(), bodyFont));
             document.add(new Paragraph("Fecha: " + venta.getFecha().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")), bodyFont));
+            String nombreCliente = venta.getCliente() != null ? venta.getCliente().getNombre() + " " + venta.getCliente().getApellido() : "Consumidor Final";
+            document.add(new Paragraph("Cliente: " + nombreCliente, bodyFont));
             document.add(new Paragraph("Atendido por: " + venta.getUsuario().getUsername(), bodyFont));
             document.add(new Paragraph("Forma de pago: " + venta.getFormaPago(), bodyFont));
             document.add(new Paragraph("Estado: " + venta.getEstado(), bodyFont));
@@ -898,6 +912,12 @@ public class VentaServiceImpl implements VentaService {
 
 
                 venta.getUsuario().getUsername(),
+                
+                
+                venta.getCliente() != null ? venta.getCliente().getId() : null,
+
+
+                venta.getCliente() != null ? venta.getCliente().getNombre() + " " + venta.getCliente().getApellido() : "Consumidor Final",
 
 
                 detalles
@@ -1010,5 +1030,39 @@ public class VentaServiceImpl implements VentaService {
         }
 
         return new ComparacionVentasResponse(facturadoActual, facturadoAnterior, porcentajeVariacion);
+    }
+
+    @Override
+    public byte[] generarComparacionPdf(String periodo) {
+        ComparacionVentasResponse comparacion = compararVentas(periodo);
+
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Document document = new Document();
+            PdfWriter.getInstance(document, out);
+            document.open();
+
+            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
+            Font bodyFont = FontFactory.getFont(FontFactory.HELVETICA, 12);
+            Font highlightFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14);
+
+            Paragraph title = new Paragraph("Reporte de Comparación de Ventas", titleFont);
+            title.setAlignment(Paragraph.ALIGN_CENTER);
+            document.add(title);
+            document.add(new Paragraph(" "));
+
+            document.add(new Paragraph("Período analizado: " + periodo.toUpperCase(), bodyFont));
+            document.add(new Paragraph(" "));
+
+            document.add(new Paragraph("Total facturado (Período actual): $" + comparacion.actual(), highlightFont));
+            document.add(new Paragraph("Total facturado (Período anterior): $" + comparacion.anterior(), highlightFont));
+            
+            String signo = comparacion.porcentajeVariacion().compareTo(BigDecimal.ZERO) > 0 ? "+" : "";
+            document.add(new Paragraph("Variación: " + signo + comparacion.porcentajeVariacion() + "%", highlightFont));
+
+            document.close();
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new BusinessException("Error al generar el PDF de comparación de ventas");
+        }
     }
 }
