@@ -24,6 +24,8 @@ public interface ProductoService {
 
     Page<ProductoResponse> listar(Pageable pageable);
 
+    Page<ProductoResponse> listarInactivos(Pageable pageable);
+
 
 
     ProductoResponse obtenerPorId(
@@ -73,5 +75,7 @@ public interface ProductoService {
             List<Long> ids,
             java.math.BigDecimal porcentaje
     );
+
+    List<com.maelespecieros.backend.dto.response.HistorialPrecioResponse> obtenerHistorialPrecios(Long id);
 
 }
