@@ -187,7 +187,11 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Override
     @Transactional(readOnly = true)
     public Page<UsuarioResponse> listar(Pageable pageable){
-
+        
+        if (!esSuperAdminActual()) {
+            return repository.findByRolNot(Rol.SUPER_ADMIN, pageable)
+                    .map(this::convertirResponse);
+        }
 
         return repository.findAll(pageable)
 

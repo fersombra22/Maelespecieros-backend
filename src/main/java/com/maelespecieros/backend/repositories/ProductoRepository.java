@@ -84,6 +84,11 @@ public interface ProductoRepository
             Pageable pageable
     );
 
+    @EntityGraph(attributePaths = {"categoria"})
+    Page<Producto> findByActivoFalse(
+            Pageable pageable
+    );
+
 
 
 
@@ -91,11 +96,12 @@ public interface ProductoRepository
 
 
     /*
-     * Buscar por nombre
+     * Buscar por término (nombre, modelo, código o categoría)
      */
     @EntityGraph(attributePaths = {"categoria"})
-    Page<Producto> findByNombreContainingIgnoreCase(
-            String nombre,
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Producto p WHERE p.activo = true AND (LOWER(p.nombre) LIKE LOWER(CONCAT('%', :termino, '%')) OR LOWER(p.modelo) LIKE LOWER(CONCAT('%', :termino, '%')) OR LOWER(p.categoria.nombre) LIKE LOWER(CONCAT('%', :termino, '%')) OR LOWER(p.codigoProducto) LIKE LOWER(CONCAT('%', :termino, '%')))")
+    Page<Producto> buscarPorTermino(
+            @org.springframework.data.repository.query.Param("termino") String termino,
             Pageable pageable
     );
 

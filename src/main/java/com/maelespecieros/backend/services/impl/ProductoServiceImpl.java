@@ -38,31 +38,22 @@ public class ProductoServiceImpl
     
     private final InventoryService inventoryService;
 
+    private final com.maelespecieros.backend.repositories.HistorialPrecioRepository historialPrecioRepository;
 
     public ProductoServiceImpl(
-
             ProductoRepository repository,
-
             CategoriaRepository categoriaRepository,
-
             NumeradorService numeradorService,
-
             BlockchainService blockchainService,
-            
-            InventoryService inventoryService
-
+            InventoryService inventoryService,
+            com.maelespecieros.backend.repositories.HistorialPrecioRepository historialPrecioRepository
     ){
-
         this.repository = repository;
-
         this.categoriaRepository = categoriaRepository;
-
         this.numeradorService = numeradorService;
-
         this.blockchainService = blockchainService;
-        
         this.inventoryService = inventoryService;
-
+        this.historialPrecioRepository = historialPrecioRepository;
     }
 
 
@@ -183,6 +174,16 @@ public class ProductoServiceImpl
 
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProductoResponse> listarInactivos(Pageable pageable){
+
+        return repository
+                .findByActivoFalse(pageable)
+                .map(this::convertir);
+
+    }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -248,7 +249,7 @@ public class ProductoServiceImpl
     ){
 
         return repository
-                .findByNombreContainingIgnoreCase(nombre, pageable)
+                .buscarPorTermino(nombre, pageable)
 
                 .map(this::convertir);
 
@@ -324,23 +325,32 @@ public class ProductoServiceImpl
         );
 
 
-        producto.setPrecioEfectivo(
-                request.precioEfectivo()
-        );
-
-
         producto.setCosto(
                 request.costo()
         );
-
 
         producto.setStock(
                 request.stock()
         );
 
-
         producto.setStockMinimo(
                 request.stockMinimo()
+        );
+
+        BigDecimal precioAnterior = producto.getPrecioEfectivo();
+        if (precioAnterior != null && request.precioEfectivo() != null && precioAnterior.compareTo(request.precioEfectivo()) != 0) {
+            com.maelespecieros.backend.entities.HistorialPrecio historial = com.maelespecieros.backend.entities.HistorialPrecio.builder()
+                    .producto(producto)
+                    .precioAnterior(precioAnterior)
+                    .precioNuevo(request.precioEfectivo())
+                    .fechaCambio(java.time.LocalDateTime.now())
+                    .usuarioResponsable(getUsuarioAutenticado())
+                    .build();
+            historialPrecioRepository.save(historial);
+        }
+
+        producto.setPrecioEfectivo(
+                request.precioEfectivo()
         );
 
 
@@ -493,6 +503,15 @@ public class ProductoServiceImpl
                 producto.setPrecioEfectivo(nuevoPrecio);
                 repository.save(producto);
 
+                com.maelespecieros.backend.entities.HistorialPrecio historial = com.maelespecieros.backend.entities.HistorialPrecio.builder()
+                        .producto(producto)
+                        .precioAnterior(precioActual)
+                        .precioNuevo(nuevoPrecio)
+                        .fechaCambio(java.time.LocalDateTime.now())
+                        .usuarioResponsable(getUsuarioAutenticado())
+                        .build();
+                historialPrecioRepository.save(historial);
+
                 blockchainService.registrarBloque(
                         getUsuarioAutenticado(),
                         "AUMENTO_MASIVO",
@@ -503,6 +522,22 @@ public class ProductoServiceImpl
                 );
             }
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.maelespecieros.backend.dto.response.HistorialPrecioResponse> obtenerHistorialPrecios(Long id) {
+        return historialPrecioRepository.findByProductoIdOrderByFechaCambioDesc(id)
+                .stream()
+                .map(h -> new com.maelespecieros.backend.dto.response.HistorialPrecioResponse(
+                        h.getId(),
+                        h.getProducto().getId(),
+                        h.getPrecioAnterior(),
+                        h.getPrecioNuevo(),
+                        h.getFechaCambio(),
+                        h.getUsuarioResponsable()
+                ))
+                .collect(java.util.stream.Collectors.toList());
     }
 
 }

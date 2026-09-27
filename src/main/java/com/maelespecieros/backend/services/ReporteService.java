@@ -10,4 +10,6 @@ public interface ReporteService {
 
     byte[] generarReporteAuditoria();
 
+    byte[] generarReporteHistorialPrecios();
+
 }
