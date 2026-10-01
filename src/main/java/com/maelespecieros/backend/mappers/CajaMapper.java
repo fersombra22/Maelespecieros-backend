@@ -18,7 +18,9 @@ public class CajaMapper {
             BigDecimal totalCredito,
             BigDecimal totalTransferencia,
             BigDecimal totalDigital,
-            Long cantidadVentas
+            Long cantidadVentas,
+            BigDecimal totalEgresos,
+            BigDecimal totalEgresosEfectivo
     ) {
         if (caja == null) {
             return null;
@@ -52,12 +54,56 @@ public class CajaMapper {
                 totalCredito != null ? totalCredito : BigDecimal.ZERO,
                 totalTransferencia != null ? totalTransferencia : BigDecimal.ZERO,
                 totalDigital != null ? totalDigital : BigDecimal.ZERO,
-                cantidadVentas != null ? cantidadVentas : 0L
+                cantidadVentas != null ? cantidadVentas : 0L,
+                totalEgresos != null ? totalEgresos : BigDecimal.ZERO,
+                totalEgresosEfectivo != null ? totalEgresosEfectivo : BigDecimal.ZERO
         );
     }
 
+    public CajaResponseDTO toDTO(
+            Caja caja,
+            BigDecimal totalEfectivo,
+            BigDecimal totalDebito,
+            BigDecimal totalCredito,
+            BigDecimal totalTransferencia,
+            BigDecimal totalDigital,
+            Long cantidadVentas
+    ) {
+        return toDTO(caja, totalEfectivo, totalDebito, totalCredito, totalTransferencia, totalDigital, cantidadVentas, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
     public CajaResponseDTO toDTO(Caja caja) {
-        return toDTO(caja, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0L);
+        return toDTO(caja, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0L, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
+    public EstadoActualCajaDTO toEstadoActualDTO(
+            boolean abierta,
+            Caja caja,
+            BigDecimal ventasActuales,
+            BigDecimal montoEsperado,
+            BigDecimal totalEfectivoActual,
+            BigDecimal totalDebitoActual,
+            BigDecimal totalCreditoActual,
+            BigDecimal totalTransferenciaActual,
+            BigDecimal totalDigitalActual,
+            Long cantidadVentasActual,
+            BigDecimal totalEgresosActual,
+            BigDecimal totalEgresosEfectivoActual
+    ) {
+        return new EstadoActualCajaDTO(
+                abierta,
+                toDTO(caja, totalEfectivoActual, totalDebitoActual, totalCreditoActual, totalTransferenciaActual, totalDigitalActual, cantidadVentasActual, totalEgresosActual, totalEgresosEfectivoActual),
+                ventasActuales,
+                montoEsperado,
+                totalEfectivoActual,
+                totalDebitoActual,
+                totalCreditoActual,
+                totalTransferenciaActual,
+                totalDigitalActual,
+                cantidadVentasActual,
+                totalEgresosActual != null ? totalEgresosActual : BigDecimal.ZERO,
+                totalEgresosEfectivoActual != null ? totalEgresosEfectivoActual : BigDecimal.ZERO
+        );
     }
 
     public EstadoActualCajaDTO toEstadoActualDTO(
@@ -72,9 +118,9 @@ public class CajaMapper {
             BigDecimal totalDigitalActual,
             Long cantidadVentasActual
     ) {
-        return new EstadoActualCajaDTO(
+        return toEstadoActualDTO(
                 abierta,
-                toDTO(caja, totalEfectivoActual, totalDebitoActual, totalCreditoActual, totalTransferenciaActual, totalDigitalActual, cantidadVentasActual),
+                caja,
                 ventasActuales,
                 montoEsperado,
                 totalEfectivoActual,
@@ -82,7 +128,9 @@ public class CajaMapper {
                 totalCreditoActual,
                 totalTransferenciaActual,
                 totalDigitalActual,
-                cantidadVentasActual
+                cantidadVentasActual,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO
         );
     }
 }

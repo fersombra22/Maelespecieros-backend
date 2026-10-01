@@ -24,6 +24,7 @@ import com.maelespecieros.backend.exceptions.BusinessException;
 import com.maelespecieros.backend.exceptions.ResourceNotFoundException;
 import com.maelespecieros.backend.mappers.CajaMapper;
 import com.maelespecieros.backend.repositories.CajaRepository;
+import com.maelespecieros.backend.repositories.GastoOperativoRepository;
 import com.maelespecieros.backend.repositories.UsuarioRepository;
 import com.maelespecieros.backend.repositories.VentaRepository;
 import com.maelespecieros.backend.services.BlockchainService;
@@ -36,6 +37,7 @@ public class CajaServiceImpl implements CajaService {
     private final CajaRepository cajaRepository;
     private final VentaRepository ventaRepository;
     private final UsuarioRepository usuarioRepository;
+    private final GastoOperativoRepository gastoOperativoRepository;
     private final CajaMapper cajaMapper;
     private final BlockchainService blockchainService;
 
@@ -43,12 +45,14 @@ public class CajaServiceImpl implements CajaService {
             CajaRepository cajaRepository,
             VentaRepository ventaRepository,
             UsuarioRepository usuarioRepository,
+            GastoOperativoRepository gastoOperativoRepository,
             CajaMapper cajaMapper,
             BlockchainService blockchainService
     ) {
         this.cajaRepository = cajaRepository;
         this.ventaRepository = ventaRepository;
         this.usuarioRepository = usuarioRepository;
+        this.gastoOperativoRepository = gastoOperativoRepository;
         this.cajaMapper = cajaMapper;
         this.blockchainService = blockchainService;
     }
@@ -161,8 +165,13 @@ public class CajaServiceImpl implements CajaService {
         LocalDateTime ahora = LocalDateTime.now();
         DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), ahora);
 
+        BigDecimal totalEgresos = gastoOperativoRepository.obtenerTotalEgresosPorCaja(caja.getId());
+        BigDecimal totalEgresosEfectivo = gastoOperativoRepository.obtenerTotalEgresosPorCajaYFormaPago(caja.getId(), FormaPago.EFECTIVO);
+
         BigDecimal montoVentas = desglose.totalVentas();
-        BigDecimal montoEsperado = montoVentas;
+
+        // Fórmula del efectivo esperado: Monto inicial + Ventas en efectivo - Egresos en efectivo
+        BigDecimal efectivoEsperado = caja.getMontoInicial().add(desglose.totalEfectivo()).subtract(totalEgresosEfectivo);
 
         BigDecimal montoFinal;
         BigDecimal diferencia;
@@ -173,10 +182,10 @@ public class CajaServiceImpl implements CajaService {
             // Total rendido = Efectivo físico contado + Ventas digitales registradas automáticamente
             montoFinal = efectivoContado.add(desglose.totalDigital());
             // La diferencia es el arqueo sobre el efectivo: efectivoContado - efectivoEsperado
-            diferencia = efectivoContado.subtract(desglose.totalEfectivo());
+            diferencia = efectivoContado.subtract(efectivoEsperado);
         } else if (dto.montoFinal() != null) {
             montoFinal = dto.montoFinal();
-            diferencia = montoFinal.subtract(montoEsperado);
+            diferencia = montoFinal.subtract(montoVentas);
         } else {
             throw new BusinessException("Debe ingresar el efectivo contado o el monto final de cierre.");
         }
@@ -214,7 +223,9 @@ public class CajaServiceImpl implements CajaService {
                 desglose.totalCredito(),
                 desglose.totalTransferencia(),
                 desglose.totalDigital(),
-                desglose.cantidadVentas()
+                desglose.cantidadVentas(),
+                totalEgresos,
+                totalEgresosEfectivo
         );
     }
 
@@ -234,24 +245,34 @@ public class CajaServiceImpl implements CajaService {
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
-                    0L
+                    0L,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO
             );
         }
 
         Caja caja = cajaOpt.get();
         DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), LocalDateTime.now());
 
+        BigDecimal totalEgresos = gastoOperativoRepository.obtenerTotalEgresosPorCaja(caja.getId());
+        BigDecimal totalEgresosEfectivo = gastoOperativoRepository.obtenerTotalEgresosPorCajaYFormaPago(caja.getId(), FormaPago.EFECTIVO);
+
+        // Fórmula: Monto inicial + Ventas en efectivo - Egresos en efectivo
+        BigDecimal efectivoEsperado = caja.getMontoInicial().add(desglose.totalEfectivo()).subtract(totalEgresosEfectivo);
+
         return cajaMapper.toEstadoActualDTO(
                 true,
                 caja,
                 desglose.totalVentas(),
-                desglose.totalVentas(),
+                efectivoEsperado,
                 desglose.totalEfectivo(),
                 desglose.totalDebito(),
                 desglose.totalCredito(),
                 desglose.totalTransferencia(),
                 desglose.totalDigital(),
-                desglose.cantidadVentas()
+                desglose.cantidadVentas(),
+                totalEgresos,
+                totalEgresosEfectivo
         );
     }
 
@@ -261,6 +282,9 @@ public class CajaServiceImpl implements CajaService {
         Caja caja = cajaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Caja no encontrada con id: " + id));
         DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), caja.getFechaCierre());
+        BigDecimal totalEgresos = gastoOperativoRepository.obtenerTotalEgresosPorCaja(caja.getId());
+        BigDecimal totalEgresosEfectivo = gastoOperativoRepository.obtenerTotalEgresosPorCajaYFormaPago(caja.getId(), FormaPago.EFECTIVO);
+
         return cajaMapper.toDTO(
                 caja,
                 desglose.totalEfectivo(),
@@ -268,7 +292,9 @@ public class CajaServiceImpl implements CajaService {
                 desglose.totalCredito(),
                 desglose.totalTransferencia(),
                 desglose.totalDigital(),
-                desglose.cantidadVentas()
+                desglose.cantidadVentas(),
+                totalEgresos,
+                totalEgresosEfectivo
         );
     }
 
@@ -278,6 +304,8 @@ public class CajaServiceImpl implements CajaService {
         return cajaRepository.findAllByOrderByFechaAperturaDesc(pageable)
                 .map(caja -> {
                     DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), caja.getFechaCierre());
+                    BigDecimal totalEgresos = gastoOperativoRepository.obtenerTotalEgresosPorCaja(caja.getId());
+                    BigDecimal totalEgresosEfectivo = gastoOperativoRepository.obtenerTotalEgresosPorCajaYFormaPago(caja.getId(), FormaPago.EFECTIVO);
                     return cajaMapper.toDTO(
                             caja,
                             desglose.totalEfectivo(),
@@ -285,7 +313,9 @@ public class CajaServiceImpl implements CajaService {
                             desglose.totalCredito(),
                             desglose.totalTransferencia(),
                             desglose.totalDigital(),
-                            desglose.cantidadVentas()
+                            desglose.cantidadVentas(),
+                            totalEgresos,
+                            totalEgresosEfectivo
                     );
                 });
     }

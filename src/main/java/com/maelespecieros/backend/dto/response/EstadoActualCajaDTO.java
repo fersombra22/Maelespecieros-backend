@@ -12,6 +12,8 @@ public record EstadoActualCajaDTO(
         BigDecimal totalCreditoActual,
         BigDecimal totalTransferenciaActual,
         BigDecimal totalDigitalActual,
-        Long cantidadVentasActual
+        Long cantidadVentasActual,
+        BigDecimal totalEgresosActual,
+        BigDecimal totalEgresosEfectivoActual
 ) {
 }
