@@ -49,4 +49,81 @@ public class Caja {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
+
+    /*
+     * Sello criptográfico de integridad de la fila.
+     * Protege contra manipulaciones directas en la base de datos.
+     */
+    @Column(name = "hash_integridad", length = 64)
+    private String hashIntegridad;
+
+    /*
+     * ==========================================
+     * METODOS DE INTEGRIDAD FORENSE
+     * ==========================================
+     */
+    @Transient
+    private final String SECRET_KEY = "MaelEspecierosSecretKey2026";
+
+    public void firmarIntegridad() {
+        this.hashIntegridad = calcularHash();
+    }
+
+    public boolean esIntegro() {
+        if (this.hashIntegridad == null) return false;
+        return this.hashIntegridad.equals(calcularHash());
+    }
+
+    private String calcularHash() {
+        try {
+            String montoInicialStr = this.montoInicial != null ? this.montoInicial.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String montoFinalStr = this.montoFinal != null ? this.montoFinal.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String montoVentasStr = this.montoVentas != null ? this.montoVentas.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String diferenciaStr = this.diferencia != null ? this.diferencia.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String usuarioId = (this.usuario != null && this.usuario.getId() != null) ? this.usuario.getId().toString() : "0";
+
+            String datosVitales = (this.id != null ? this.id.toString() : "0") + "|" +
+                                  montoInicialStr + "|" +
+                                  montoFinalStr + "|" +
+                                  montoVentasStr + "|" +
+                                  diferenciaStr + "|" +
+                                  (this.estado != null ? this.estado.name() : "") + "|" +
+                                  usuarioId;
+
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest((datosVitales + SECRET_KEY).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hashBytes) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Error al calcular la integridad de la caja", e);
+        }
+    }
+
+    @PrePersist
+    public void prePersist() {
+        if (this.fechaApertura == null) {
+            this.fechaApertura = LocalDateTime.now();
+        }
+        if (this.estado == null) {
+            this.estado = EstadoCaja.ABIERTA;
+        }
+        if (this.montoVentas == null) {
+            this.montoVentas = BigDecimal.ZERO;
+        }
+        if (this.diferencia == null) {
+            this.diferencia = BigDecimal.ZERO;
+        }
+        firmarIntegridad();
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        firmarIntegridad();
+    }
 }
