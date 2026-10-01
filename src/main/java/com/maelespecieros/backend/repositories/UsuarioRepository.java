@@ -129,9 +129,9 @@ public interface UsuarioRepository
      */
     java.util.List<Usuario> findAllByBloqueadoTrue();
 
-
-
-
-
+    /*
+     * Listado excluyendo un rol (para ocultar SUPER_ADMIN a ADMINs)
+     */
+    org.springframework.data.domain.Page<Usuario> findByRolNot(Rol rol, org.springframework.data.domain.Pageable pageable);
 
 }

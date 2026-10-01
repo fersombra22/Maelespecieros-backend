@@ -28,4 +28,6 @@ public interface VentaService {
 
     ComparacionVentasResponse compararVentas(String periodo);
 
+    byte[] generarComparacionPdf(String periodo);
+
 }

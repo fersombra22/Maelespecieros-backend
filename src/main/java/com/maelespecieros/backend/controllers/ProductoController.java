@@ -115,6 +115,21 @@ public class ProductoController {
 
     }
 
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','EMPLEADO')")
+    @GetMapping("/inactivos")
+    public ResponseEntity<ApiResponse<Page<ProductoResponse>>> listarInactivos(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size
+    ){
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        Messages.LIST,
+                        service.listarInactivos(PageRequest.of(page, size))
+                )
+        );
+    }
+
 
 
 
@@ -321,6 +336,22 @@ public class ProductoController {
 
     }
 
+    // SOLO ADMIN Y SUPER ADMIN
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+    @PutMapping("/{id}/activar")
+    public ResponseEntity<ApiResponse<Void>> activar(
+            @PathVariable Long id
+    ){
+        service.activar(id);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Producto reactivado exitosamente.",
+                        null
+                )
+        );
+    }
 
     // SOLO ADMIN Y SUPER ADMIN
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
@@ -362,6 +393,20 @@ public class ProductoController {
                             null
                     ));
         }
+    }
+
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','EMPLEADO')")
+    @GetMapping("/{id}/historial-precios")
+    public ResponseEntity<ApiResponse<java.util.List<com.maelespecieros.backend.dto.response.HistorialPrecioResponse>>> obtenerHistorial(
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Historial de precios obtenido",
+                        service.obtenerHistorialPrecios(id)
+                )
+        );
     }
 
 }

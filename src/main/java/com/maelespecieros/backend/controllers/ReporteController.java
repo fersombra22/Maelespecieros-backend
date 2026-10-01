@@ -59,11 +59,16 @@ public class ReporteController {
 
     @GetMapping("/auditoria/pdf")
     public ResponseEntity<byte[]> auditoria() {
-
         return crearRespuesta(
                 service.generarReporteAuditoria(),
                 "auditoria.pdf", MediaType.APPLICATION_PDF);
+    }
 
+    @GetMapping("/historial-precios/pdf")
+    public ResponseEntity<byte[]> historialPrecios() {
+        return crearRespuesta(
+                service.generarReporteHistorialPrecios(),
+                "historial_precios.pdf", MediaType.APPLICATION_PDF);
     }
 
     private ResponseEntity<byte[]> crearRespuesta(
