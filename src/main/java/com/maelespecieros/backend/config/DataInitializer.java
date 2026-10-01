@@ -16,30 +16,23 @@ import com.maelespecieros.backend.repositories.UsuarioRepository;
 
 
 @Component
+@lombok.extern.slf4j.Slf4j
 public class DataInitializer implements CommandLineRunner {
 
 
 
     private final UsuarioRepository usuarioRepository;
-
-
     private final PasswordEncoder passwordEncoder;
-
-
-
+    private final com.maelespecieros.backend.repositories.CajaRepository cajaRepository;
 
     public DataInitializer(
-
             UsuarioRepository usuarioRepository,
-
-            PasswordEncoder passwordEncoder
-
+            PasswordEncoder passwordEncoder,
+            com.maelespecieros.backend.repositories.CajaRepository cajaRepository
     ){
-
         this.usuarioRepository = usuarioRepository;
-
         this.passwordEncoder = passwordEncoder;
-
+        this.cajaRepository = cajaRepository;
     }
 
 
@@ -123,23 +116,23 @@ public class DataInitializer implements CommandLineRunner {
 
 
 
-            System.out.println(
+            log.info(
                     "================================="
             );
 
-            System.out.println(
+            log.info(
                     "ROOT creado correctamente"
             );
 
-            System.out.println(
+            log.info(
                     "Usuario: root"
             );
 
-            System.out.println(
+            log.info(
                     "Password temporal: root123"
             );
 
-            System.out.println(
+            log.info(
                     "================================="
             );
 
@@ -147,8 +140,13 @@ public class DataInitializer implements CommandLineRunner {
 
         }
 
-
-
+        // Sellar criptográficamente cajas históricas si no tienen hash
+        for (com.maelespecieros.backend.entities.Caja caja : cajaRepository.findAll()) {
+            if (caja.getHashIntegridad() == null) {
+                caja.firmarIntegridad();
+                cajaRepository.save(caja);
+            }
+        }
     }
 
 

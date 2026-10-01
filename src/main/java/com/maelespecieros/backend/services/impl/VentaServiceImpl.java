@@ -23,6 +23,7 @@ import com.maelespecieros.backend.dto.response.VentaResponse;
 import com.maelespecieros.backend.dto.response.ComparacionVentasResponse;
 
 import com.maelespecieros.backend.entities.DetalleVenta;
+import com.maelespecieros.backend.entities.EstadoCaja;
 import com.maelespecieros.backend.entities.EstadoVenta;
 import com.maelespecieros.backend.entities.FormaPago;
 import com.maelespecieros.backend.entities.Producto;
@@ -33,6 +34,7 @@ import com.maelespecieros.backend.entities.Cliente;
 import com.maelespecieros.backend.exceptions.BusinessException;
 import com.maelespecieros.backend.exceptions.ResourceNotFoundException;
 
+import com.maelespecieros.backend.repositories.CajaRepository;
 import com.maelespecieros.backend.repositories.ProductoRepository;
 import com.maelespecieros.backend.repositories.UsuarioRepository;
 import com.maelespecieros.backend.repositories.VentaRepository;
@@ -63,65 +65,35 @@ public class VentaServiceImpl implements VentaService {
 
 
     private final VentaRepository ventaRepository;
-
-
     private final ProductoRepository productoRepository;
-
-
     private final UsuarioRepository usuarioRepository;
-
     private final ClienteRepository clienteRepository;
-
+    private final CajaRepository cajaRepository;
     private final CodigoService codigoService;
-
-
     private final PrecioService precioService;
-
-
     private final InventoryService inventoryService;
-
     private final BlockchainService blockchainService;
 
-
-
-
-
     public VentaServiceImpl(
-
             VentaRepository ventaRepository,
-
             ProductoRepository productoRepository,
-
             UsuarioRepository usuarioRepository,
-
             ClienteRepository clienteRepository,
-
+            CajaRepository cajaRepository,
             CodigoService codigoService,
-
             PrecioService precioService,
-
             InventoryService inventoryService,
-
             BlockchainService blockchainService
-
     ){
-
         this.ventaRepository = ventaRepository;
-
         this.productoRepository = productoRepository;
-
         this.usuarioRepository = usuarioRepository;
-        
         this.clienteRepository = clienteRepository;
-
+        this.cajaRepository = cajaRepository;
         this.codigoService = codigoService;
-
         this.precioService = precioService;
-
         this.inventoryService = inventoryService;
-
         this.blockchainService = blockchainService;
-
     }
 
 
@@ -134,12 +106,11 @@ public class VentaServiceImpl implements VentaService {
 
     @Override
     public VentaResponse crear(
-
             VentaRequest request
-
     ){
-
-
+        if (!cajaRepository.existsByEstado(EstadoCaja.ABIERTA)) {
+            throw new BusinessException("No es posible registrar ventas porque no hay ninguna caja abierta. Por favor, realice la apertura de caja antes de operar.");
+        }
 
         Authentication authentication =
 

@@ -11,7 +11,15 @@ import com.maelespecieros.backend.entities.Caja;
 @Component
 public class CajaMapper {
 
-    public CajaResponseDTO toDTO(Caja caja) {
+    public CajaResponseDTO toDTO(
+            Caja caja,
+            BigDecimal totalEfectivo,
+            BigDecimal totalDebito,
+            BigDecimal totalCredito,
+            BigDecimal totalTransferencia,
+            BigDecimal totalDigital,
+            Long cantidadVentas
+    ) {
         if (caja == null) {
             return null;
         }
@@ -38,16 +46,43 @@ public class CajaMapper {
                 caja.getObservaciones(),
                 usuarioId,
                 usuarioUsername,
-                usuarioNombre
+                usuarioNombre,
+                totalEfectivo != null ? totalEfectivo : BigDecimal.ZERO,
+                totalDebito != null ? totalDebito : BigDecimal.ZERO,
+                totalCredito != null ? totalCredito : BigDecimal.ZERO,
+                totalTransferencia != null ? totalTransferencia : BigDecimal.ZERO,
+                totalDigital != null ? totalDigital : BigDecimal.ZERO,
+                cantidadVentas != null ? cantidadVentas : 0L
         );
     }
 
-    public EstadoActualCajaDTO toEstadoActualDTO(boolean abierta, Caja caja, BigDecimal ventasActuales, BigDecimal montoEsperado) {
+    public CajaResponseDTO toDTO(Caja caja) {
+        return toDTO(caja, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0L);
+    }
+
+    public EstadoActualCajaDTO toEstadoActualDTO(
+            boolean abierta,
+            Caja caja,
+            BigDecimal ventasActuales,
+            BigDecimal montoEsperado,
+            BigDecimal totalEfectivoActual,
+            BigDecimal totalDebitoActual,
+            BigDecimal totalCreditoActual,
+            BigDecimal totalTransferenciaActual,
+            BigDecimal totalDigitalActual,
+            Long cantidadVentasActual
+    ) {
         return new EstadoActualCajaDTO(
                 abierta,
-                toDTO(caja),
+                toDTO(caja, totalEfectivoActual, totalDebitoActual, totalCreditoActual, totalTransferenciaActual, totalDigitalActual, cantidadVentasActual),
                 ventasActuales,
-                montoEsperado
+                montoEsperado,
+                totalEfectivoActual,
+                totalDebitoActual,
+                totalCreditoActual,
+                totalTransferenciaActual,
+                totalDigitalActual,
+                cantidadVentasActual
         );
     }
 }

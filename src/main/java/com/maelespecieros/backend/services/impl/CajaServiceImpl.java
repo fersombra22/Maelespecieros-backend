@@ -2,6 +2,7 @@ package com.maelespecieros.backend.services.impl;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -17,6 +18,7 @@ import com.maelespecieros.backend.dto.response.CajaResponseDTO;
 import com.maelespecieros.backend.dto.response.EstadoActualCajaDTO;
 import com.maelespecieros.backend.entities.Caja;
 import com.maelespecieros.backend.entities.EstadoCaja;
+import com.maelespecieros.backend.entities.FormaPago;
 import com.maelespecieros.backend.entities.Usuario;
 import com.maelespecieros.backend.exceptions.BusinessException;
 import com.maelespecieros.backend.exceptions.ResourceNotFoundException;
@@ -49,6 +51,52 @@ public class CajaServiceImpl implements CajaService {
         this.usuarioRepository = usuarioRepository;
         this.cajaMapper = cajaMapper;
         this.blockchainService = blockchainService;
+    }
+
+    private static record DesgloseTurno(
+            BigDecimal totalEfectivo,
+            BigDecimal totalDebito,
+            BigDecimal totalCredito,
+            BigDecimal totalTransferencia,
+            BigDecimal totalDigital,
+            BigDecimal totalVentas,
+            Long cantidadVentas
+    ) {}
+
+    private DesgloseTurno calcularDesglose(LocalDateTime inicio, LocalDateTime fin) {
+        if (inicio == null) {
+            return new DesgloseTurno(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0L);
+        }
+        LocalDateTime fechaFin = fin != null ? fin : LocalDateTime.now();
+
+        List<Object[]> resultados = ventaRepository.obtenerTotalesPorMetodoPagoEntreFechas(inicio, fechaFin);
+        Long cantidadVentas = ventaRepository.contarVentasEntreFechas(inicio, fechaFin);
+        if (cantidadVentas == null) {
+            cantidadVentas = 0L;
+        }
+
+        BigDecimal efectivo = BigDecimal.ZERO;
+        BigDecimal debito = BigDecimal.ZERO;
+        BigDecimal credito = BigDecimal.ZERO;
+        BigDecimal transferencia = BigDecimal.ZERO;
+
+        for (Object[] fila : resultados) {
+            FormaPago forma = (FormaPago) fila[0];
+            BigDecimal total = (BigDecimal) fila[1];
+            if (forma != null && total != null) {
+                switch (forma) {
+                    case EFECTIVO -> efectivo = efectivo.add(total);
+                    case DEBITO -> debito = debito.add(total);
+                    case CREDITO -> credito = credito.add(total);
+                    case TRANSFERENCIA -> transferencia = transferencia.add(total);
+                }
+            }
+        }
+
+        BigDecimal digital = debito.add(credito).add(transferencia);
+        BigDecimal totalVentas = efectivo.add(digital);
+
+        return new DesgloseTurno(efectivo, debito, credito, transferencia, digital, totalVentas, cantidadVentas);
     }
 
     private Usuario getUsuarioActual() {
@@ -102,7 +150,7 @@ public class CajaServiceImpl implements CajaService {
                 guardada
         );
 
-        return cajaMapper.toDTO(guardada);
+        return cajaMapper.toDTO(guardada, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0L);
     }
 
     @Override
@@ -111,18 +159,30 @@ public class CajaServiceImpl implements CajaService {
                 .orElseThrow(() -> new BusinessException("No existe ninguna caja actualmente abierta para realizar el cierre."));
 
         LocalDateTime ahora = LocalDateTime.now();
+        DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), ahora);
 
-        // Total facturado por ventas completadas desde la apertura hasta el momento de cierre
-        BigDecimal montoVentas = ventaRepository.obtenerTotalFacturadoEntreFechas(caja.getFechaApertura(), ahora);
-        if (montoVentas == null) {
-            montoVentas = BigDecimal.ZERO;
+        BigDecimal montoVentas = desglose.totalVentas();
+        BigDecimal montoEsperado = montoVentas;
+
+        BigDecimal montoFinal;
+        BigDecimal diferencia;
+
+        if (dto.montoEfectivo() != null) {
+            // El cajero ingresó el efectivo físico contado en el cajón
+            BigDecimal efectivoContado = dto.montoEfectivo();
+            // Total rendido = Efectivo físico contado + Ventas digitales registradas automáticamente
+            montoFinal = efectivoContado.add(desglose.totalDigital());
+            // La diferencia es el arqueo sobre el efectivo: efectivoContado - efectivoEsperado
+            diferencia = efectivoContado.subtract(desglose.totalEfectivo());
+        } else if (dto.montoFinal() != null) {
+            montoFinal = dto.montoFinal();
+            diferencia = montoFinal.subtract(montoEsperado);
+        } else {
+            throw new BusinessException("Debe ingresar el efectivo contado o el monto final de cierre.");
         }
 
-        BigDecimal montoEsperado = caja.getMontoInicial().add(montoVentas);
-        BigDecimal diferencia = dto.montoFinal().subtract(montoEsperado);
-
         caja.setMontoVentas(montoVentas);
-        caja.setMontoFinal(dto.montoFinal());
+        caja.setMontoFinal(montoFinal);
         caja.setDiferencia(diferencia);
         caja.setFechaCierre(ahora);
         caja.setEstado(EstadoCaja.CERRADA);
@@ -147,7 +207,15 @@ public class CajaServiceImpl implements CajaService {
                 guardada
         );
 
-        return cajaMapper.toDTO(guardada);
+        return cajaMapper.toDTO(
+                guardada,
+                desglose.totalEfectivo(),
+                desglose.totalDebito(),
+                desglose.totalCredito(),
+                desglose.totalTransferencia(),
+                desglose.totalDigital(),
+                desglose.cantidadVentas()
+        );
     }
 
     @Override
@@ -156,18 +224,35 @@ public class CajaServiceImpl implements CajaService {
         Optional<Caja> cajaOpt = cajaRepository.findFirstByEstadoOrderByFechaAperturaDesc(EstadoCaja.ABIERTA);
 
         if (cajaOpt.isEmpty()) {
-            return cajaMapper.toEstadoActualDTO(false, null, BigDecimal.ZERO, BigDecimal.ZERO);
+            return cajaMapper.toEstadoActualDTO(
+                    false,
+                    null,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    0L
+            );
         }
 
         Caja caja = cajaOpt.get();
-        BigDecimal montoVentasActual = ventaRepository.obtenerTotalFacturadoEntreFechas(caja.getFechaApertura(), LocalDateTime.now());
-        if (montoVentasActual == null) {
-            montoVentasActual = BigDecimal.ZERO;
-        }
+        DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), LocalDateTime.now());
 
-        BigDecimal montoEsperadoActual = caja.getMontoInicial().add(montoVentasActual);
-
-        return cajaMapper.toEstadoActualDTO(true, caja, montoVentasActual, montoEsperadoActual);
+        return cajaMapper.toEstadoActualDTO(
+                true,
+                caja,
+                desglose.totalVentas(),
+                desglose.totalVentas(),
+                desglose.totalEfectivo(),
+                desglose.totalDebito(),
+                desglose.totalCredito(),
+                desglose.totalTransferencia(),
+                desglose.totalDigital(),
+                desglose.cantidadVentas()
+        );
     }
 
     @Override
@@ -175,13 +260,33 @@ public class CajaServiceImpl implements CajaService {
     public CajaResponseDTO obtenerPorId(Long id) {
         Caja caja = cajaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Caja no encontrada con id: " + id));
-        return cajaMapper.toDTO(caja);
+        DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), caja.getFechaCierre());
+        return cajaMapper.toDTO(
+                caja,
+                desglose.totalEfectivo(),
+                desglose.totalDebito(),
+                desglose.totalCredito(),
+                desglose.totalTransferencia(),
+                desglose.totalDigital(),
+                desglose.cantidadVentas()
+        );
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<CajaResponseDTO> listarHistorial(Pageable pageable) {
         return cajaRepository.findAllByOrderByFechaAperturaDesc(pageable)
-                .map(cajaMapper::toDTO);
+                .map(caja -> {
+                    DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), caja.getFechaCierre());
+                    return cajaMapper.toDTO(
+                            caja,
+                            desglose.totalEfectivo(),
+                            desglose.totalDebito(),
+                            desglose.totalCredito(),
+                            desglose.totalTransferencia(),
+                            desglose.totalDigital(),
+                            desglose.cantidadVentas()
+                    );
+                });
     }
 }

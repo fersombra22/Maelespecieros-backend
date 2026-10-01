@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@lombok.extern.slf4j.Slf4j
 public class AIServiceImpl implements AIService {
 
     private final DashboardService dashboardService;
@@ -32,10 +33,14 @@ public class AIServiceImpl implements AIService {
     private final ProductoRepository productoRepository;
     private final DetalleVentaRepository detalleVentaRepository;
     private final com.maelespecieros.backend.repositories.VentaRepository ventaRepository;
+    private final com.maelespecieros.backend.repositories.CajaRepository cajaRepository;
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${gemini.api.key}")
     private String geminiApiKey;
+
+    @Value("${gemini.model:gemini-3.5-flash}")
+    private String geminiModel;
 
     @Override
     public AIInsightsResponse getInsights() {
@@ -94,6 +99,16 @@ public class AIServiceImpl implements AIService {
                 anomalias.add(new com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse(
                     "VENTA", venta.getNumeroVenta(), "Totales / Estado", "Firma Criptográfica Segura", "Montos Alterados",
                     "Alerta: La venta " + venta.getNumeroVenta() + " fue alterada directamente en la BD."
+                ));
+            }
+        }
+
+        // Revisar Cajas
+        for (com.maelespecieros.backend.entities.Caja caja : cajaRepository.findAll()) {
+            if (!caja.esIntegro()) {
+                anomalias.add(new com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse(
+                    "CAJA", "Turno #" + caja.getId(), "Montos / Estado", "Firma Criptográfica Segura", "Arqueo o Estado Alterado",
+                    "Alerta: El registro de la caja #" + caja.getId() + " fue alterado directamente en la BD."
                 ));
             }
         }
@@ -163,12 +178,14 @@ public class AIServiceImpl implements AIService {
         return ChatResponse.builder().reply(reply).build();
     }
 
+    @SuppressWarnings("unchecked")
     private String callGeminiApi(String prompt) {
         if (geminiApiKey == null || geminiApiKey.equals("su_clave_api_gemini_aqui")) {
             return "API KEY no configurada.";
         }
         try {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=" + geminiApiKey;
+            String modelo = (geminiModel != null && !geminiModel.isBlank()) ? geminiModel.trim() : "gemini-3.5-flash";
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelo + ":generateContent?key=" + geminiApiKey;
             
             Map<String, Object> requestBody = new HashMap<>();
             Map<String, Object> parts = new HashMap<>();
@@ -191,8 +208,7 @@ public class AIServiceImpl implements AIService {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
-            System.out.println("GEMINI API ERROR: " + e.getMessage());
+            log.error("GEMINI API ERROR: ", e);
         }
         return "ERROR";
     }

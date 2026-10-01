@@ -24,21 +24,13 @@ import com.maelespecieros.backend.services.BlockchainService;
 
 @RestController
 @RequestMapping("/api/blockchain")
-@CrossOrigin(originPatterns = "*") 
 @PreAuthorize("hasRole('SUPER_ADMIN')") 
 public class BlockchainController {
 
     private final BlockchainService blockchainService;
-    private final ProductoRepository productoRepository;
-    private final VentaRepository ventaRepository;
 
-    public BlockchainController(
-            BlockchainService blockchainService,
-            ProductoRepository productoRepository,
-            VentaRepository ventaRepository) {
+    public BlockchainController(BlockchainService blockchainService) {
         this.blockchainService = blockchainService;
-        this.productoRepository = productoRepository;
-        this.ventaRepository = ventaRepository;
     }
 
     @GetMapping
@@ -63,67 +55,7 @@ public class BlockchainController {
      */
     @GetMapping("/verificar")
     public ResponseEntity<Map<String, Object>> verificar(){
-        
-        // 1. Verificamos la inmutabilidad de la cadena (Auditoría)
-        List<AnomaliaAuditoriaResponse> anomaliasCadena = blockchainService.verificarCadenaDetallado();
-        
-        // 2. Verificamos la integridad cruzada (Las filas de SQLite)
-        List<AnomaliaAuditoriaResponse> anomaliasBD = verificarIntegridadDatosBD();
-
-        // Juntar todas las anomalías
-        List<AnomaliaAuditoriaResponse> anomalias = new ArrayList<>();
-        anomalias.addAll(anomaliasCadena);
-        anomalias.addAll(anomaliasBD);
-
-        // 3. Empaquetamos todo para Angular
-        Map<String, Object> response = new HashMap<>();
-        
-        // El sistema es válido SOLO si la cadena está sana y NO hay anomalías de BD
-        boolean sistemaIntegro = anomalias.isEmpty();
-        
-        response.put("valida", sistemaIntegro);
-        response.put("anomalias", anomalias);
-
-        return ResponseEntity.ok(response);
-    }
-
-    /*
-     * Método privado que recorre las tablas y caza a los infractores
-     */
-    private List<AnomaliaAuditoriaResponse> verificarIntegridadDatosBD() {
-        List<AnomaliaAuditoriaResponse> anomalias = new ArrayList<>();
-
-        // Revisar Productos
-        List<Producto> productos = productoRepository.findAll();
-        for (Producto prod : productos) {
-            if (!prod.esIntegro()) {
-                anomalias.add(new AnomaliaAuditoriaResponse(
-                    "PRODUCTO",
-                    prod.getCodigoProducto(),
-                    "Stock / Precio",
-                    "Firma Criptográfica Segura",
-                    "Datos Modificados Manualmente",
-                    "Alerta: El registro del producto fue alterado directamente en la base de datos."
-                ));
-            }
-        }
-
-        // Revisar Ventas
-        List<Venta> ventas = ventaRepository.findAll();
-        for (Venta venta : ventas) {
-            if (!venta.esIntegro()) {
-                anomalias.add(new AnomaliaAuditoriaResponse(
-                    "VENTA",
-                    venta.getNumeroVenta(),
-                    "Totales / Estado",
-                    "Firma Criptográfica Segura",
-                    "Montos Alterados",
-                    "Alerta: Los importes o el estado de esta venta fueron modificados ilegalmente."
-                ));
-            }
-        }
-
-        return anomalias;
+        return ResponseEntity.ok(blockchainService.verificarSistemaCompleto());
     }
 
     @GetMapping("/verificar/{cantidad}")
