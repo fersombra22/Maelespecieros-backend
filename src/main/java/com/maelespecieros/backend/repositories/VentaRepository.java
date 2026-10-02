@@ -20,13 +20,13 @@ import com.maelespecieros.backend.entities.Venta;
 public interface VentaRepository extends JpaRepository<Venta, Long> {
 
 
-    @EntityGraph(attributePaths = {"detalles", "usuario"})
+    @EntityGraph(attributePaths = {"usuario", "cliente"})
     Page<Venta> findAll(Pageable pageable);
 
-    @EntityGraph(attributePaths = {"detalles", "usuario"})
+    @EntityGraph(attributePaths = {"detalles", "detalles.producto", "usuario", "cliente"})
     Optional<Venta> findById(Long id);
 
-    @EntityGraph(attributePaths = {"detalles", "usuario"})
+    @EntityGraph(attributePaths = {"detalles", "detalles.producto", "usuario", "cliente"})
     Optional<Venta> findByNumeroVenta(
             String numeroVenta
     );
