@@ -39,7 +39,7 @@ public class AIServiceImpl implements AIService {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
-    @Value("${gemini.model:gemini-3.5-flash}")
+    @Value("${gemini.model:gemini-2.0-flash}")
     private String geminiModel;
 
     @Override
@@ -184,7 +184,7 @@ public class AIServiceImpl implements AIService {
             return "API KEY no configurada.";
         }
         try {
-            String modelo = (geminiModel != null && !geminiModel.isBlank()) ? geminiModel.trim() : "gemini-3.5-flash";
+            String modelo = (geminiModel != null && !geminiModel.isBlank()) ? geminiModel.trim() : "gemini-2.0-flash";
             String url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelo + ":generateContent?key=" + geminiApiKey;
             
             Map<String, Object> requestBody = new HashMap<>();

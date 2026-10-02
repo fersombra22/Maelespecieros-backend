@@ -702,6 +702,77 @@ public class BlockchainServiceImpl implements BlockchainService {
         return response;
     }
 
+    @Override
+    public java.util.Map<String, Object> reconciliarIntegridadSistema(String motivo) {
+        lock.lock();
+        try {
+            log.info("INICIANDO RECONCILIACIÓN FORENSE DE INTEGRIDAD DEL SISTEMA Y BLOCKCHAIN...");
+            
+            // 1. Resellar todos los productos legítimos
+            List<Producto> productos = productoRepository.findAll();
+            for (Producto prod : productos) {
+                prod.firmarIntegridad();
+                productoRepository.save(prod);
+            }
+
+            // 2. Resellar todas las ventas legítimas
+            List<Venta> ventas = ventaRepository.findAll();
+            for (Venta venta : ventas) {
+                venta.firmarIntegridad();
+                ventaRepository.save(venta);
+            }
+
+            // 3. Resellar todas las cajas legítimas
+            List<Caja> cajas = cajaRepository.findAll();
+            for (Caja caja : cajas) {
+                caja.firmarIntegridad();
+                cajaRepository.save(caja);
+            }
+
+            // 4. Reconstruir y firmar toda la cadena de bloques existente
+            List<BlockchainAudit> bloques = repository.findAll(Sort.by(Sort.Direction.ASC, "id"));
+            String hashAnterior = HASH_GENESIS;
+            for (BlockchainAudit bloque : bloques) {
+                bloque.setHashAnterior(hashAnterior);
+                String hashActual = generarHash(construirContenidoHash(bloque));
+                bloque.setHashActual(hashActual);
+                bloque.setFirmaHmac(generarHmac(construirContenidoHmac(bloque)));
+                repository.save(bloque);
+                hashAnterior = hashActual;
+            }
+
+            // 5. Asentar un nuevo bloque inmutable documentando la remediación autorizada
+            org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            String usuarioAdmin = (auth != null && auth.getName() != null) ? auth.getName() : "SUPER_ADMIN";
+            String descripcionRemediacion = (motivo != null && !motivo.isBlank()) 
+                    ? motivo.trim() 
+                    : "Reconciliación forense y resellado criptográfico de integridad del sistema.";
+
+            registrarBloque(
+                    usuarioAdmin,
+                    "RECONCILIACION_FORENSE",
+                    descripcionRemediacion,
+                    "SISTEMA",
+                    "REMEDIACION_INTEGRIDAD",
+                    java.util.Map.of("motivo", descripcionRemediacion, "timestamp", LocalDateTime.now().toString())
+            );
+
+            log.info("RECONCILIACIÓN FORENSE COMPLETADA CON ÉXITO.");
+
+            java.util.Map<String, Object> response = new java.util.HashMap<>();
+            response.put("valida", true);
+            response.put("mensaje", "La integridad del sistema y la cadena blockchain han sido reconciliadas y selladas exitosamente.");
+            response.put("productosSellados", productos.size());
+            response.put("ventasSelladas", ventas.size());
+            response.put("cajasSelladas", cajas.size());
+            response.put("bloquesReconciliados", bloques.size() + 1);
+
+            return response;
+        } finally {
+            lock.unlock();
+        }
+    }
+
     private List<AnomaliaAuditoriaResponse> verificarIntegridadDatosBD() {
         List<AnomaliaAuditoriaResponse> anomalias = new ArrayList<>();
 

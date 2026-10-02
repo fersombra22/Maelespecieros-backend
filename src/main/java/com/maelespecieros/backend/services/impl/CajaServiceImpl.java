@@ -161,8 +161,10 @@ public class CajaServiceImpl implements CajaService {
         LocalDateTime ahora = LocalDateTime.now();
         DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), ahora);
 
+        BigDecimal montoInicial = caja.getMontoInicial() != null ? caja.getMontoInicial() : BigDecimal.ZERO;
         BigDecimal montoVentas = desglose.totalVentas();
-        BigDecimal montoEsperado = montoVentas;
+        BigDecimal efectivoEsperado = montoInicial.add(desglose.totalEfectivo());
+        BigDecimal montoEsperadoTotal = montoInicial.add(montoVentas);
 
         BigDecimal montoFinal;
         BigDecimal diferencia;
@@ -172,11 +174,11 @@ public class CajaServiceImpl implements CajaService {
             BigDecimal efectivoContado = dto.montoEfectivo();
             // Total rendido = Efectivo físico contado + Ventas digitales registradas automáticamente
             montoFinal = efectivoContado.add(desglose.totalDigital());
-            // La diferencia es el arqueo sobre el efectivo: efectivoContado - efectivoEsperado
-            diferencia = efectivoContado.subtract(desglose.totalEfectivo());
+            // La diferencia es el arqueo sobre el efectivo: efectivoContado - efectivoEsperado (fondo inicial + ventas efectivo)
+            diferencia = efectivoContado.subtract(efectivoEsperado);
         } else if (dto.montoFinal() != null) {
             montoFinal = dto.montoFinal();
-            diferencia = montoFinal.subtract(montoEsperado);
+            diferencia = montoFinal.subtract(montoEsperadoTotal);
         } else {
             throw new BusinessException("Debe ingresar el efectivo contado o el monto final de cierre.");
         }
@@ -240,12 +242,14 @@ public class CajaServiceImpl implements CajaService {
 
         Caja caja = cajaOpt.get();
         DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), LocalDateTime.now());
+        BigDecimal montoInicial = caja.getMontoInicial() != null ? caja.getMontoInicial() : BigDecimal.ZERO;
+        BigDecimal montoEsperadoTotal = montoInicial.add(desglose.totalVentas());
 
         return cajaMapper.toEstadoActualDTO(
                 true,
                 caja,
                 desglose.totalVentas(),
-                desglose.totalVentas(),
+                montoEsperadoTotal,
                 desglose.totalEfectivo(),
                 desglose.totalDebito(),
                 desglose.totalCredito(),
