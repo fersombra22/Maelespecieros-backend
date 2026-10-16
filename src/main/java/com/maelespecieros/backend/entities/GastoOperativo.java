@@ -77,15 +77,18 @@ public class GastoOperativo {
             String montoStr = this.monto != null ? this.monto.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
             String cajaIdStr = (this.caja != null && this.caja.getId() != null) ? this.caja.getId().toString() : "0";
             String usuarioIdStr = (this.usuario != null && this.usuario.getId() != null) ? this.usuario.getId().toString() : "0";
+            String comprobanteStr = (this.comprobanteNro != null) ? this.comprobanteNro.trim() : "";
+            String fechaStr = (this.fecha != null) ? this.fecha.truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString() : "";
 
-            String datosVitales = (this.id != null ? this.id.toString() : "0") + "|" +
-                                  montoStr + "|" +
-                                  (this.concepto != null ? this.concepto : "") + "|" +
+            String datosVitales = montoStr + "|" +
+                                  (this.concepto != null ? this.concepto.trim() : "") + "|" +
                                   (this.categoriaGasto != null ? this.categoriaGasto.name() : "") + "|" +
                                   (this.formaPago != null ? this.formaPago.name() : "") + "|" +
+                                  comprobanteStr + "|" +
                                   cajaIdStr + "|" +
                                   usuarioIdStr + "|" +
-                                  (this.anulado != null ? this.anulado.toString() : "false");
+                                  fechaStr + "|" +
+                                  (Boolean.TRUE.equals(this.anulado) ? "true" : "false");
 
             java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = digest.digest((datosVitales + SECRET_KEY).getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -105,7 +108,9 @@ public class GastoOperativo {
     @PrePersist
     public void prePersist() {
         if (this.fecha == null) {
-            this.fecha = LocalDateTime.now();
+            this.fecha = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        } else {
+            this.fecha = this.fecha.truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         }
         if (this.anulado == null) {
             this.anulado = false;

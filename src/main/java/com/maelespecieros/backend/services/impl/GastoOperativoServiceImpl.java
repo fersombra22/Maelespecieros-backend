@@ -72,6 +72,10 @@ public class GastoOperativoServiceImpl implements GastoOperativoService {
 
     @Override
     public GastoOperativoResponse registrarGasto(GastoOperativoRequest request) {
+        if (request.monto() == null || request.monto().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("El monto del gasto operativo debe ser mayor a cero.");
+        }
+
         Caja caja = cajaRepository.findFirstByEstadoOrderByFechaAperturaDesc(EstadoCaja.ABIERTA)
                 .orElseThrow(() -> new BusinessException("No es posible registrar un gasto operativo: no existe ninguna caja abierta en el sistema."));
 
@@ -83,7 +87,7 @@ public class GastoOperativoServiceImpl implements GastoOperativoService {
         gasto.setCategoriaGasto(request.categoriaGasto());
         gasto.setFormaPago(request.formaPago());
         gasto.setComprobanteNro(request.comprobanteNro() != null && !request.comprobanteNro().trim().isEmpty() ? request.comprobanteNro().trim() : null);
-        gasto.setFecha(LocalDateTime.now());
+        gasto.setFecha(LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         gasto.setAnulado(false);
         gasto.setCaja(caja);
         gasto.setUsuario(usuario);
@@ -96,7 +100,7 @@ public class GastoOperativoServiceImpl implements GastoOperativoService {
                 "Registro de gasto operativo ID: " + guardado.getId() + " por $" + guardado.getMonto() + " (" + guardado.getConcepto() + ") en Turno de Caja ID: " + caja.getId(),
                 "GASTO_OPERATIVO",
                 guardado.getId().toString(),
-                guardado
+                com.maelespecieros.backend.dto.audit.GastoOperativoAuditDTO.fromEntity(guardado)
         );
 
         return gastoOperativoMapper.toDTO(guardado);
@@ -148,8 +152,8 @@ public class GastoOperativoServiceImpl implements GastoOperativoService {
             throw new BusinessException("El gasto operativo ya se encuentra anulado.");
         }
 
-        if (gasto.getCaja().getEstado() == EstadoCaja.CERRADA) {
-            throw new BusinessException("No es posible anular un gasto perteneciente a un turno de caja que ya ha sido cerrado.");
+        if (gasto.getCaja() == null || gasto.getCaja().getEstado() != EstadoCaja.ABIERTA) {
+            throw new BusinessException("No es posible anular un gasto perteneciente a un turno de caja que ya ha sido cerrado o no se encuentra activo.");
         }
 
         gasto.setAnulado(true);
@@ -161,7 +165,7 @@ public class GastoOperativoServiceImpl implements GastoOperativoService {
                 "Anulación de gasto operativo ID: " + guardado.getId() + " por $" + guardado.getMonto() + " en Caja ID: " + gasto.getCaja().getId(),
                 "GASTO_OPERATIVO",
                 guardado.getId().toString(),
-                guardado
+                com.maelespecieros.backend.dto.audit.GastoOperativoAuditDTO.fromEntity(guardado)
         );
 
         return gastoOperativoMapper.toDTO(guardado);
