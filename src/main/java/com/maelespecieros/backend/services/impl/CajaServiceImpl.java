@@ -165,20 +165,10 @@ public class CajaServiceImpl implements CajaService {
         LocalDateTime ahora = LocalDateTime.now();
         DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), ahora);
 
-        BigDecimal totalEgresos = gastoOperativoRepository.obtenerTotalEgresosPorCaja(caja.getId());
-        BigDecimal totalEgresosEfectivo = gastoOperativoRepository.obtenerTotalEgresosPorCajaYFormaPago(caja.getId(), FormaPago.EFECTIVO);
-
         BigDecimal montoInicial = caja.getMontoInicial() != null ? caja.getMontoInicial() : BigDecimal.ZERO;
-        BigDecimal totalEgresosSafe = totalEgresos != null ? totalEgresos : BigDecimal.ZERO;
-        BigDecimal totalEgresosEfectivoSafe = totalEgresosEfectivo != null ? totalEgresosEfectivo : BigDecimal.ZERO;
-        BigDecimal ventasEfectivoSafe = desglose.totalEfectivo() != null ? desglose.totalEfectivo() : BigDecimal.ZERO;
-        BigDecimal ventasDigitalSafe = desglose.totalDigital() != null ? desglose.totalDigital() : BigDecimal.ZERO;
-        BigDecimal montoVentas = desglose.totalVentas() != null ? desglose.totalVentas() : BigDecimal.ZERO;
-
-        // Fórmula del efectivo esperado: Monto inicial + Ventas en efectivo - Egresos en efectivo
-        BigDecimal efectivoEsperado = montoInicial.add(ventasEfectivoSafe).subtract(totalEgresosEfectivoSafe);
-        // Monto total esperado rendido (Efectivo esperado + Cobros digitales)
-        BigDecimal montoEsperadoTotal = efectivoEsperado.add(ventasDigitalSafe);
+        BigDecimal montoVentas = desglose.totalVentas();
+        BigDecimal efectivoEsperado = montoInicial.add(desglose.totalEfectivo());
+        BigDecimal montoEsperadoTotal = montoInicial.add(montoVentas);
 
         BigDecimal montoFinal;
         BigDecimal diferencia;
@@ -187,8 +177,8 @@ public class CajaServiceImpl implements CajaService {
             // El cajero ingresó el efectivo físico contado en el cajón
             BigDecimal efectivoContado = dto.montoEfectivo();
             // Total rendido = Efectivo físico contado + Ventas digitales registradas automáticamente
-            montoFinal = efectivoContado.add(ventasDigitalSafe);
-            // La diferencia es el arqueo sobre el efectivo: efectivoContado - efectivoEsperado
+            montoFinal = efectivoContado.add(desglose.totalDigital());
+            // La diferencia es el arqueo sobre el efectivo: efectivoContado - efectivoEsperado (fondo inicial + ventas efectivo)
             diferencia = efectivoContado.subtract(efectivoEsperado);
         } else if (dto.montoFinal() != null) {
             montoFinal = dto.montoFinal();
@@ -260,6 +250,8 @@ public class CajaServiceImpl implements CajaService {
 
         Caja caja = cajaOpt.get();
         DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), LocalDateTime.now());
+        BigDecimal montoInicial = caja.getMontoInicial() != null ? caja.getMontoInicial() : BigDecimal.ZERO;
+        BigDecimal montoEsperadoTotal = montoInicial.add(desglose.totalVentas());
 
         BigDecimal totalEgresos = gastoOperativoRepository.obtenerTotalEgresosPorCaja(caja.getId());
         BigDecimal totalEgresosEfectivo = gastoOperativoRepository.obtenerTotalEgresosPorCajaYFormaPago(caja.getId(), FormaPago.EFECTIVO);
@@ -276,7 +268,7 @@ public class CajaServiceImpl implements CajaService {
                 true,
                 caja,
                 desglose.totalVentas(),
-                efectivoEsperado,
+                montoEsperadoTotal,
                 desglose.totalEfectivo(),
                 desglose.totalDebito(),
                 desglose.totalCredito(),

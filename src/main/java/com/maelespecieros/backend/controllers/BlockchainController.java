@@ -58,6 +58,12 @@ public class BlockchainController {
         return ResponseEntity.ok(blockchainService.verificarSistemaCompleto());
     }
 
+    @PostMapping("/reconciliar")
+    public ResponseEntity<Map<String, Object>> reconciliar(@RequestBody(required = false) Map<String, String> request){
+        String motivo = request != null ? request.get("motivo") : null;
+        return ResponseEntity.ok(blockchainService.reconciliarIntegridadSistema(motivo));
+    }
+
     @GetMapping("/verificar/{cantidad}")
     public ResponseEntity<Boolean> verificarUltimos(@PathVariable int cantidad){
         return ResponseEntity.ok(blockchainService.verificarUltimosBloques(cantidad));

@@ -76,13 +76,16 @@ public class Caja {
 
     private String calcularHash() {
         try {
+            String fechaAperturaStr = this.fechaApertura != null 
+                    ? this.fechaApertura.truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString() 
+                    : "";
             String montoInicialStr = this.montoInicial != null ? this.montoInicial.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
             String montoFinalStr = this.montoFinal != null ? this.montoFinal.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
             String montoVentasStr = this.montoVentas != null ? this.montoVentas.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
             String diferenciaStr = this.diferencia != null ? this.diferencia.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
             String usuarioId = (this.usuario != null && this.usuario.getId() != null) ? this.usuario.getId().toString() : "0";
 
-            String datosVitales = (this.id != null ? this.id.toString() : "0") + "|" +
+            String datosVitales = fechaAperturaStr + "|" +
                                   montoInicialStr + "|" +
                                   montoFinalStr + "|" +
                                   montoVentasStr + "|" +
@@ -108,7 +111,9 @@ public class Caja {
     @PrePersist
     public void prePersist() {
         if (this.fechaApertura == null) {
-            this.fechaApertura = LocalDateTime.now();
+            this.fechaApertura = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        } else {
+            this.fechaApertura = this.fechaApertura.truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         }
         if (this.estado == null) {
             this.estado = EstadoCaja.ABIERTA;
@@ -124,6 +129,9 @@ public class Caja {
 
     @PreUpdate
     public void preUpdate() {
+        if (this.fechaCierre != null) {
+            this.fechaCierre = this.fechaCierre.truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        }
         firmarIntegridad();
     }
 }
