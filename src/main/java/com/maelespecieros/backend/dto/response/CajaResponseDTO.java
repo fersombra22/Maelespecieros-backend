@@ -17,6 +17,12 @@ public record CajaResponseDTO(
         String observaciones,
         Long usuarioId,
         String usuarioUsername,
-        String usuarioNombreCompleto
+        String usuarioNombreCompleto,
+        BigDecimal totalEfectivo,
+        BigDecimal totalDebito,
+        BigDecimal totalCredito,
+        BigDecimal totalTransferencia,
+        BigDecimal totalDigital,
+        Long cantidadVentas
 ) {
 }

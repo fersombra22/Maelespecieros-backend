@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.domain.PageRequest;
 import com.maelespecieros.backend.dto.response.DashboardResponse;
 import com.maelespecieros.backend.entities.EstadoVenta;
 import com.maelespecieros.backend.repositories.ProductoRepository;
@@ -77,7 +78,7 @@ public class DashboardServiceImpl implements DashboardService {
                 
                 porcentajeVariacionMensual,
                 
-                ventaRepository.obtenerTopProductos(),
+                ventaRepository.obtenerTopProductos(PageRequest.of(0, 5)),
                 
                 ventaRepository.obtenerVentasPorMetodoPago()
 

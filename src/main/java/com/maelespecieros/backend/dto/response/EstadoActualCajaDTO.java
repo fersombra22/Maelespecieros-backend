@@ -6,6 +6,12 @@ public record EstadoActualCajaDTO(
         boolean abierta,
         CajaResponseDTO caja,
         BigDecimal montoVentasActual,
-        BigDecimal montoEsperadoActual
+        BigDecimal montoEsperadoActual,
+        BigDecimal totalEfectivoActual,
+        BigDecimal totalDebitoActual,
+        BigDecimal totalCreditoActual,
+        BigDecimal totalTransferenciaActual,
+        BigDecimal totalDigitalActual,
+        Long cantidadVentasActual
 ) {
 }

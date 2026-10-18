@@ -62,6 +62,10 @@ public interface BlockchainService {
      */
     boolean verificarCadena();
 
+    java.util.Map<String, Object> verificarSistemaCompleto();
+
+    java.util.Map<String, Object> reconciliarIntegridadSistema(String motivo);
+
     /*
      * =====================================================
      * VERIFICACIÓN COMPLETA DETALLADA
