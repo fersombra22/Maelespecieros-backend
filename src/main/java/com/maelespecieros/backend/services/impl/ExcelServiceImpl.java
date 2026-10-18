@@ -379,4 +379,49 @@ public class ExcelServiceImpl implements ExcelService {
 
     }
 
+    @Override
+    @Transactional(readOnly = false)
+    public void importarProductos(org.springframework.web.multipart.MultipartFile file) throws Exception {
+        try (java.io.InputStream is = file.getInputStream();
+             XSSFWorkbook workbook = new XSSFWorkbook(is)) {
+            
+            XSSFSheet sheet = workbook.getSheetAt(0);
+            
+            // Fila 0 es título, fila 1 es cabecera. Empezamos en la fila 2.
+            for (int i = 2; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                
+                Cell cellCodigo = row.getCell(0);
+                if (cellCodigo == null || cellCodigo.getStringCellValue().trim().isEmpty()) {
+                    continue;
+                }
+                
+                String codigo = cellCodigo.getStringCellValue().trim();
+                
+                java.util.Optional<Producto> optProducto = productoRepository.findByCodigoProducto(codigo);
+                if (optProducto.isPresent()) {
+                    Producto prod = optProducto.get();
+                    
+                    // Columna 3: Stock
+                    if (row.getCell(3) != null) {
+                        prod.setStock((int) row.getCell(3).getNumericCellValue());
+                    }
+                    
+                    // Columna 4: Costo
+                    if (row.getCell(4) != null) {
+                        prod.setCosto(java.math.BigDecimal.valueOf(row.getCell(4).getNumericCellValue()));
+                    }
+                    
+                    // Columna 5: Precio
+                    if (row.getCell(5) != null) {
+                        prod.setPrecioEfectivo(java.math.BigDecimal.valueOf(row.getCell(5).getNumericCellValue()));
+                    }
+                    
+                    productoRepository.save(prod);
+                }
+            }
+        }
+    }
+
 }

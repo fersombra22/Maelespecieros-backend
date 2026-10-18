@@ -175,26 +175,42 @@ public class SecurityConfig {
                 )
                 .hasAnyRole(
                         "SUPER_ADMIN",
-                        "ADMIN"
+                        "ADMIN",
+                        "EMPLEADO"
                 )
 
                 /*
                  * Restringir por roles
                  */
                 .requestMatchers(
-                        "/api/usuarios/**",
                         "/api/auditoria/**"
                 )
                 .hasRole("SUPER_ADMIN")
 
                 .requestMatchers(
+                        "/api/usuarios/**"
+                )
+                .hasAnyRole(
+                        "SUPER_ADMIN",
+                        "ADMIN"
+                )
+
+                .requestMatchers(
                         "/api/categorias/**",
-                        "/api/movimientos/**",
                         "/api/reportes/**"
                 )
                 .hasAnyRole(
                         "SUPER_ADMIN",
                         "ADMIN"
+                )
+
+                .requestMatchers(
+                        "/api/movimientos/**"
+                )
+                .hasAnyRole(
+                        "SUPER_ADMIN",
+                        "ADMIN",
+                        "EMPLEADO"
                 )
 
 

@@ -115,12 +115,15 @@ public class Producto {
     private String calcularHash() {
         try {
             // Unimos los datos vitales que no queremos que nos alteren por detrás
+            String codigoStr = this.codigoProducto != null ? this.codigoProducto : "";
             String precioEfectivoStr = this.precioEfectivo != null ? this.precioEfectivo.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String stockStr = this.stock != null ? this.stock.toString() : "0";
+            String activoStr = this.activo != null ? this.activo.toString() : "true";
             
-            String datosVitales = this.codigoProducto + "|" + 
+            String datosVitales = codigoStr + "|" + 
                                   precioEfectivoStr + "|" + 
-                                  this.stock + "|" + 
-                                  this.activo;
+                                  stockStr + "|" + 
+                                  activoStr;
 
             java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = digest.digest((datosVitales + SECRET_KEY).getBytes(java.nio.charset.StandardCharsets.UTF_8));

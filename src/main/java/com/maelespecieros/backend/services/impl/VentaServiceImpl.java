@@ -20,20 +20,25 @@ import com.maelespecieros.backend.dto.request.VentaRequest;
 
 import com.maelespecieros.backend.dto.response.DetalleVentaResponse;
 import com.maelespecieros.backend.dto.response.VentaResponse;
+import com.maelespecieros.backend.dto.response.ComparacionVentasResponse;
 
 import com.maelespecieros.backend.entities.DetalleVenta;
+import com.maelespecieros.backend.entities.EstadoCaja;
 import com.maelespecieros.backend.entities.EstadoVenta;
 import com.maelespecieros.backend.entities.FormaPago;
 import com.maelespecieros.backend.entities.Producto;
 import com.maelespecieros.backend.entities.Usuario;
 import com.maelespecieros.backend.entities.Venta;
+import com.maelespecieros.backend.entities.Cliente;
 
 import com.maelespecieros.backend.exceptions.BusinessException;
 import com.maelespecieros.backend.exceptions.ResourceNotFoundException;
 
+import com.maelespecieros.backend.repositories.CajaRepository;
 import com.maelespecieros.backend.repositories.ProductoRepository;
 import com.maelespecieros.backend.repositories.UsuarioRepository;
 import com.maelespecieros.backend.repositories.VentaRepository;
+import com.maelespecieros.backend.repositories.ClienteRepository;
 
 import com.maelespecieros.backend.services.BlockchainService;
 import com.maelespecieros.backend.services.CodigoService;
@@ -60,60 +65,35 @@ public class VentaServiceImpl implements VentaService {
 
 
     private final VentaRepository ventaRepository;
-
-
     private final ProductoRepository productoRepository;
-
-
     private final UsuarioRepository usuarioRepository;
-
-
+    private final ClienteRepository clienteRepository;
+    private final CajaRepository cajaRepository;
     private final CodigoService codigoService;
-
-
     private final PrecioService precioService;
-
-
     private final InventoryService inventoryService;
-
     private final BlockchainService blockchainService;
 
-
-
-
-
     public VentaServiceImpl(
-
             VentaRepository ventaRepository,
-
             ProductoRepository productoRepository,
-
             UsuarioRepository usuarioRepository,
-
+            ClienteRepository clienteRepository,
+            CajaRepository cajaRepository,
             CodigoService codigoService,
-
             PrecioService precioService,
-
             InventoryService inventoryService,
-
             BlockchainService blockchainService
-
     ){
-
         this.ventaRepository = ventaRepository;
-
         this.productoRepository = productoRepository;
-
         this.usuarioRepository = usuarioRepository;
-
+        this.clienteRepository = clienteRepository;
+        this.cajaRepository = cajaRepository;
         this.codigoService = codigoService;
-
         this.precioService = precioService;
-
         this.inventoryService = inventoryService;
-
         this.blockchainService = blockchainService;
-
     }
 
 
@@ -126,12 +106,11 @@ public class VentaServiceImpl implements VentaService {
 
     @Override
     public VentaResponse crear(
-
             VentaRequest request
-
     ){
-
-
+        if (!cajaRepository.existsByEstado(EstadoCaja.ABIERTA)) {
+            throw new BusinessException("No es posible registrar ventas porque no hay ninguna caja abierta. Por favor, realice la apertura de caja antes de operar.");
+        }
 
         Authentication authentication =
 
@@ -171,6 +150,11 @@ public class VentaServiceImpl implements VentaService {
 
         Venta venta = new Venta();
 
+        if (request.clienteId() != null) {
+            Cliente cliente = clienteRepository.findById(request.clienteId())
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
+            venta.setCliente(cliente);
+        }
 
         venta.setUsuario(usuario);
 
@@ -798,6 +782,8 @@ public class VentaServiceImpl implements VentaService {
             Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
             Font bodyFont = FontFactory.getFont(FontFactory.HELVETICA, 10);
 
+
+
             Paragraph title = new Paragraph("Comprobante de Venta - Mael Especieros", titleFont);
             title.setAlignment(Paragraph.ALIGN_CENTER);
             document.add(title);
@@ -805,6 +791,8 @@ public class VentaServiceImpl implements VentaService {
 
             document.add(new Paragraph("Nro Venta: " + venta.getNumeroVenta(), bodyFont));
             document.add(new Paragraph("Fecha: " + venta.getFecha().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")), bodyFont));
+            String nombreCliente = venta.getCliente() != null ? venta.getCliente().getNombre() + " " + venta.getCliente().getApellido() : "Consumidor Final";
+            document.add(new Paragraph("Cliente: " + nombreCliente, bodyFont));
             document.add(new Paragraph("Atendido por: " + venta.getUsuario().getUsername(), bodyFont));
             document.add(new Paragraph("Forma de pago: " + venta.getFormaPago(), bodyFont));
             document.add(new Paragraph("Estado: " + venta.getEstado(), bodyFont));
@@ -895,6 +883,12 @@ public class VentaServiceImpl implements VentaService {
 
 
                 venta.getUsuario().getUsername(),
+                
+                
+                venta.getCliente() != null ? venta.getCliente().getId() : null,
+
+
+                venta.getCliente() != null ? venta.getCliente().getNombre() + " " + venta.getCliente().getApellido() : "Consumidor Final",
 
 
                 detalles
@@ -954,5 +948,92 @@ public class VentaServiceImpl implements VentaService {
         );
 
 
+    }
+
+    @Override
+    public ComparacionVentasResponse compararVentas(String periodo) {
+        java.time.LocalDateTime ahora = java.time.LocalDateTime.now();
+        java.time.LocalDateTime inicioActual = ahora;
+        java.time.LocalDateTime inicioAnterior = ahora;
+        java.time.LocalDateTime finAnterior = ahora;
+
+        switch (periodo.toUpperCase()) {
+            case "DIA":
+                inicioActual = ahora.withHour(0).withMinute(0).withSecond(0).withNano(0);
+                inicioAnterior = inicioActual.minusDays(1);
+                finAnterior = inicioActual.minusSeconds(1);
+                break;
+            case "SEMANA":
+                java.time.temporal.WeekFields weekFields = java.time.temporal.WeekFields.of(java.util.Locale.getDefault());
+                int diaDeSemana = ahora.get(weekFields.dayOfWeek());
+                inicioActual = ahora.minusDays(diaDeSemana - 1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+                inicioAnterior = inicioActual.minusWeeks(1);
+                finAnterior = inicioActual.minusSeconds(1);
+                break;
+            case "MES":
+                inicioActual = ahora.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+                inicioAnterior = inicioActual.minusMonths(1);
+                finAnterior = inicioActual.minusSeconds(1);
+                break;
+            case "ANO":
+            case "AÑO":
+                inicioActual = ahora.withDayOfYear(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+                inicioAnterior = inicioActual.minusYears(1);
+                finAnterior = inicioActual.minusSeconds(1);
+                break;
+            default:
+                throw new BusinessException("Periodo no válido. Use DIA, SEMANA, MES, o ANO.");
+        }
+
+        BigDecimal facturadoActual = ventaRepository.obtenerTotalFacturadoEntreFechas(inicioActual, ahora);
+        if (facturadoActual == null) facturadoActual = BigDecimal.ZERO;
+        
+        BigDecimal facturadoAnterior = ventaRepository.obtenerTotalFacturadoEntreFechas(inicioAnterior, finAnterior);
+        if (facturadoAnterior == null) facturadoAnterior = BigDecimal.ZERO;
+
+        BigDecimal porcentajeVariacion = BigDecimal.ZERO;
+        if (facturadoAnterior.compareTo(BigDecimal.ZERO) > 0) {
+            porcentajeVariacion = facturadoActual.subtract(facturadoAnterior)
+                    .divide(facturadoAnterior, 4, java.math.RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"));
+        } else if (facturadoActual.compareTo(BigDecimal.ZERO) > 0) {
+            porcentajeVariacion = new BigDecimal("100");
+        }
+
+        return new ComparacionVentasResponse(facturadoActual, facturadoAnterior, porcentajeVariacion);
+    }
+
+    @Override
+    public byte[] generarComparacionPdf(String periodo) {
+        ComparacionVentasResponse comparacion = compararVentas(periodo);
+
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Document document = new Document();
+            PdfWriter.getInstance(document, out);
+            document.open();
+
+            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
+            Font bodyFont = FontFactory.getFont(FontFactory.HELVETICA, 12);
+            Font highlightFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14);
+
+            Paragraph title = new Paragraph("Reporte de Comparación de Ventas", titleFont);
+            title.setAlignment(Paragraph.ALIGN_CENTER);
+            document.add(title);
+            document.add(new Paragraph(" "));
+
+            document.add(new Paragraph("Período analizado: " + periodo.toUpperCase(), bodyFont));
+            document.add(new Paragraph(" "));
+
+            document.add(new Paragraph("Total facturado (Período actual): $" + comparacion.actual(), highlightFont));
+            document.add(new Paragraph("Total facturado (Período anterior): $" + comparacion.anterior(), highlightFont));
+            
+            String signo = comparacion.porcentajeVariacion().compareTo(BigDecimal.ZERO) > 0 ? "+" : "";
+            document.add(new Paragraph("Variación: " + signo + comparacion.porcentajeVariacion() + "%", highlightFont));
+
+            document.close();
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new BusinessException("Error al generar el PDF de comparación de ventas");
+        }
     }
 }

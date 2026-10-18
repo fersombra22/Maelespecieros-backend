@@ -57,6 +57,11 @@ public class Venta {
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
+    // Cliente al que se le realizó la venta (puede ser null para Consumidor Final)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cliente_id")
+    private Cliente cliente;
+
     @OneToMany(
             mappedBy = "venta",
             cascade = CascadeType.ALL,
@@ -85,11 +90,14 @@ public class Venta {
             // Unimos los datos económicos vitales, normalizando la escala a 2 decimales
             String subtotalStr = this.subtotal != null ? this.subtotal.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
             String totalStr = this.total != null ? this.total.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String numeroVentaVital = this.numeroVenta != null ? this.numeroVenta : "";
+            String clienteVital = this.cliente != null && this.cliente.getId() != null ? this.cliente.getId().toString() : "CONSUMIDOR_FINAL";
             
-            String datosVitales = this.numeroVenta + "|" + 
+            String datosVitales = numeroVentaVital + "|" + 
                                   subtotalStr + "|" + 
                                   totalStr + "|" + 
-                                  (this.estado != null ? this.estado.name() : "");
+                                  (this.estado != null ? this.estado.name() : "") + "|" +
+                                  clienteVital;
 
             java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = digest.digest((datosVitales + SECRET_KEY).getBytes(java.nio.charset.StandardCharsets.UTF_8));

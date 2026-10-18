@@ -16,30 +16,29 @@ import com.maelespecieros.backend.repositories.UsuarioRepository;
 
 
 @Component
+@lombok.extern.slf4j.Slf4j
 public class DataInitializer implements CommandLineRunner {
 
 
 
     private final UsuarioRepository usuarioRepository;
-
-
     private final PasswordEncoder passwordEncoder;
-
-
-
+    private final com.maelespecieros.backend.repositories.CajaRepository cajaRepository;
+    private final com.maelespecieros.backend.repositories.ProductoRepository productoRepository;
+    private final com.maelespecieros.backend.repositories.VentaRepository ventaRepository;
 
     public DataInitializer(
-
             UsuarioRepository usuarioRepository,
-
-            PasswordEncoder passwordEncoder
-
+            PasswordEncoder passwordEncoder,
+            com.maelespecieros.backend.repositories.CajaRepository cajaRepository,
+            com.maelespecieros.backend.repositories.ProductoRepository productoRepository,
+            com.maelespecieros.backend.repositories.VentaRepository ventaRepository
     ){
-
         this.usuarioRepository = usuarioRepository;
-
         this.passwordEncoder = passwordEncoder;
-
+        this.cajaRepository = cajaRepository;
+        this.productoRepository = productoRepository;
+        this.ventaRepository = ventaRepository;
     }
 
 
@@ -123,23 +122,23 @@ public class DataInitializer implements CommandLineRunner {
 
 
 
-            System.out.println(
+            log.info(
                     "================================="
             );
 
-            System.out.println(
+            log.info(
                     "ROOT creado correctamente"
             );
 
-            System.out.println(
+            log.info(
                     "Usuario: root"
             );
 
-            System.out.println(
+            log.info(
                     "Password temporal: root123"
             );
 
-            System.out.println(
+            log.info(
                     "================================="
             );
 
@@ -147,8 +146,29 @@ public class DataInitializer implements CommandLineRunner {
 
         }
 
+        // Sellar criptográficamente cajas históricas si no tienen hash o están desactualizadas
+        for (com.maelespecieros.backend.entities.Caja caja : cajaRepository.findAll()) {
+            if (!caja.esIntegro()) {
+                caja.firmarIntegridad();
+                cajaRepository.save(caja);
+            }
+        }
 
+        // Sellar criptográficamente productos históricos si no tienen hash o están desactualizados
+        for (com.maelespecieros.backend.entities.Producto producto : productoRepository.findAll()) {
+            if (!producto.esIntegro()) {
+                producto.firmarIntegridad();
+                productoRepository.save(producto);
+            }
+        }
 
+        // Sellar criptográficamente ventas históricas si no tienen hash o están desactualizadas
+        for (com.maelespecieros.backend.entities.Venta venta : ventaRepository.findAll()) {
+            if (!venta.esIntegro()) {
+                venta.firmarIntegridad();
+                ventaRepository.save(venta);
+            }
+        }
     }
 
 

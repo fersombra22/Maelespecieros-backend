@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse;
+import com.maelespecieros.backend.entities.Caja;
 import com.maelespecieros.backend.entities.Producto;
 import com.maelespecieros.backend.entities.Venta;
 import java.math.BigDecimal;
@@ -41,13 +42,16 @@ import com.maelespecieros.backend.dto.response.BlockchainAuditResponse;
 import com.maelespecieros.backend.entities.BlockchainAudit;
 
 import com.maelespecieros.backend.repositories.BlockchainAuditRepository;
-
+import com.maelespecieros.backend.repositories.CajaRepository;
+import com.maelespecieros.backend.repositories.ProductoRepository;
+import com.maelespecieros.backend.repositories.VentaRepository;
 import com.maelespecieros.backend.services.BlockchainService;
 
 
 
 @Service
 @Transactional
+@lombok.extern.slf4j.Slf4j
 public class BlockchainServiceImpl implements BlockchainService {
 
 
@@ -123,16 +127,25 @@ public class BlockchainServiceImpl implements BlockchainService {
      */
     private final String hmacSecret;
     private final ObjectMapper objectMapper;
+    private final ProductoRepository productoRepository;
+    private final VentaRepository ventaRepository;
+    private final CajaRepository cajaRepository;
 
     public BlockchainServiceImpl(
             BlockchainAuditRepository repository,
             @Value("${blockchain.hmac.secret}")
             String hmacSecret,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ProductoRepository productoRepository,
+            VentaRepository ventaRepository,
+            CajaRepository cajaRepository
     ){
         this.repository = repository;
         this.hmacSecret = hmacSecret;
         this.objectMapper = objectMapper;
+        this.productoRepository = productoRepository;
+        this.ventaRepository = ventaRepository;
+        this.cajaRepository = cajaRepository;
     }
 
 
@@ -457,10 +470,10 @@ public class BlockchainServiceImpl implements BlockchainService {
     @Transactional(readOnly = true)
     public boolean verificarCadena(){
 
-        System.out.println();
-        System.out.println("=====================================================");
-        System.out.println("        INICIO VERIFICACION BLOCKCHAIN");
-        System.out.println("=====================================================");
+        log.info("");
+        log.info("=====================================================");
+        log.info("        INICIO VERIFICACION BLOCKCHAIN");
+        log.info("=====================================================");
 
         List<BlockchainAudit> bloques =
                 repository.findAll(
@@ -470,11 +483,11 @@ public class BlockchainServiceImpl implements BlockchainService {
                         )
                 );
 
-        System.out.println("Cantidad de bloques: " + bloques.size());
+        log.info("Cantidad de bloques: " + bloques.size());
 
         if(bloques.isEmpty()){
-            System.out.println("Blockchain vacia.");
-            System.out.println("=====================================================");
+            log.info("Blockchain vacia.");
+            log.info("=====================================================");
             return true;
         }
 
@@ -483,17 +496,17 @@ public class BlockchainServiceImpl implements BlockchainService {
 
         for(BlockchainAudit bloque : bloques){
 
-            System.out.println();
-            System.out.println("-----------------------------------------------------");
-            System.out.println("VERIFICANDO BLOQUE ID: " + bloque.getId());
-            System.out.println("UUID: " + bloque.getUuid());
+            log.info("");
+            log.info("-----------------------------------------------------");
+            log.info("VERIFICANDO BLOQUE ID: " + bloque.getId());
+            log.info("UUID: " + bloque.getUuid());
 
             boolean datosValidos = validarBloque(bloque);
-            System.out.println("DATOS BASICOS: " + (datosValidos ? "OK" : "ERROR"));
+            log.info("DATOS BASICOS: " + (datosValidos ? "OK" : "ERROR"));
 
             if(!datosValidos){
                 cadenaValida = false;
-                System.out.println("Motivo: uno o mas campos obligatorios son invalidos.");
+                log.info("Motivo: uno o mas campos obligatorios son invalidos.");
             }
 
             boolean hashAnteriorValido =
@@ -503,12 +516,12 @@ public class BlockchainServiceImpl implements BlockchainService {
                             bloque.getHashAnterior().getBytes(StandardCharsets.UTF_8)
                     );
 
-            System.out.println("HASH ANTERIOR: " + (hashAnteriorValido ? "OK" : "ERROR"));
+            log.info("HASH ANTERIOR: " + (hashAnteriorValido ? "OK" : "ERROR"));
 
             if(!hashAnteriorValido){
                 cadenaValida = false;
-                System.out.println("  Esperado : " + hashAnterior);
-                System.out.println("  Guardado : " + bloque.getHashAnterior());
+                log.info("  Esperado : " + hashAnterior);
+                log.info("  Guardado : " + bloque.getHashAnterior());
             }
 
             String hashCalculado = null;
@@ -522,12 +535,12 @@ public class BlockchainServiceImpl implements BlockchainService {
                 );
             }
 
-            System.out.println("SHA-256: " + (hashActualValido ? "OK" : "ERROR"));
+            log.info("SHA-256: " + (hashActualValido ? "OK" : "ERROR"));
 
             if(!hashActualValido){
                 cadenaValida = false;
-                System.out.println("  Calculado: " + hashCalculado);
-                System.out.println("  Guardado : " + bloque.getHashActual());
+                log.info("  Calculado: " + hashCalculado);
+                log.info("  Guardado : " + bloque.getHashActual());
             }
 
             String hmacCalculado = null;
@@ -541,12 +554,12 @@ public class BlockchainServiceImpl implements BlockchainService {
                 );
             }
 
-            System.out.println("HMAC: " + (hmacValido ? "OK" : "ERROR"));
+            log.info("HMAC: " + (hmacValido ? "OK" : "ERROR"));
 
             if(!hmacValido){
                 cadenaValida = false;
-                System.out.println("  Calculado: " + hmacCalculado);
-                System.out.println("  Guardado : " + bloque.getFirmaHmac());
+                log.info("  Calculado: " + hmacCalculado);
+                log.info("  Guardado : " + bloque.getFirmaHmac());
             }
 
             boolean bloqueValido =
@@ -555,7 +568,7 @@ public class BlockchainServiceImpl implements BlockchainService {
                     && hashActualValido
                     && hmacValido;
 
-            System.out.println(
+            log.info(
                     "RESULTADO BLOQUE: "
                     + (bloqueValido ? "VALIDO" : "INVALIDO")
             );
@@ -565,17 +578,247 @@ public class BlockchainServiceImpl implements BlockchainService {
             }
         }
 
-        System.out.println();
-        System.out.println("=====================================================");
-        System.out.println(
+        log.info("");
+        log.info("=====================================================");
+        log.info(
                 cadenaValida
                 ? "BLOCKCHAIN VALIDA"
                 : "BLOCKCHAIN INVALIDA"
         );
-        System.out.println("=====================================================");
-        System.out.println();
+        log.info("=====================================================");
+        log.info("");
 
         return cadenaValida;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AnomaliaAuditoriaResponse> verificarCadenaDetallado() {
+        List<AnomaliaAuditoriaResponse> anomalias = new ArrayList<>();
+        List<BlockchainAudit> bloques = repository.findAll(Sort.by(Sort.Direction.ASC, "id"));
+
+        if (bloques.isEmpty()) {
+            return anomalias;
+        }
+
+        String hashAnterior = HASH_GENESIS;
+
+        for (BlockchainAudit bloque : bloques) {
+            boolean datosValidos = validarBloque(bloque);
+            if (!datosValidos) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "BLOCKCHAIN",
+                    bloque.getUuid(),
+                    "Datos Básicos (Usuario, Acción, Tipo, etc.)",
+                    "Validación Estructural de Bloque",
+                    "Datos Faltantes o Nulos",
+                    "Alerta: El bloque " + bloque.getId() + " no tiene todos los datos obligatorios."
+                ));
+            }
+
+            boolean hashAnteriorValido = bloque.getHashAnterior() != null &&
+                    MessageDigest.isEqual(
+                            hashAnterior.getBytes(StandardCharsets.UTF_8),
+                            bloque.getHashAnterior().getBytes(StandardCharsets.UTF_8)
+                    );
+
+            if (!hashAnteriorValido) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "BLOCKCHAIN",
+                    bloque.getUuid(),
+                    "Hash Anterior",
+                    "Inmutabilidad de la Cadena",
+                    "Ruptura de Enlace",
+                    "Alerta: El enlace con el bloque anterior fue roto. Bloque: " + bloque.getId()
+                ));
+            }
+
+            String hashCalculado = null;
+            boolean hashActualValido = false;
+            if (bloque.getHashActual() != null) {
+                hashCalculado = generarHash(construirContenidoHash(bloque));
+                hashActualValido = MessageDigest.isEqual(
+                        hashCalculado.getBytes(StandardCharsets.UTF_8),
+                        bloque.getHashActual().getBytes(StandardCharsets.UTF_8)
+                );
+            }
+
+            if (!hashActualValido) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "BLOCKCHAIN",
+                    bloque.getUuid(),
+                    "Hash Actual",
+                    "Firma SHA-256",
+                    "Hash No Coincide",
+                    "Alerta: El hash SHA-256 del bloque " + bloque.getId() + " no coincide con el contenido real. El contenido del bloque fue modificado externamente."
+                ));
+            }
+
+            String hmacCalculado = null;
+            boolean hmacValido = false;
+            if (bloque.getFirmaHmac() != null) {
+                hmacCalculado = generarHmac(construirContenidoHmac(bloque));
+                hmacValido = MessageDigest.isEqual(
+                        hmacCalculado.getBytes(StandardCharsets.UTF_8),
+                        bloque.getFirmaHmac().getBytes(StandardCharsets.UTF_8)
+                );
+            }
+
+            if (!hmacValido) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "BLOCKCHAIN",
+                    bloque.getUuid(),
+                    "Firma HMAC",
+                    "Autenticidad HMAC",
+                    "Firma Inválida",
+                    "Alerta: La firma HMAC del bloque " + bloque.getId() + " es inválida. Esto indica falsificación."
+                ));
+            }
+
+            if (bloque.getHashActual() != null) {
+                hashAnterior = bloque.getHashActual();
+            }
+        }
+
+        return anomalias;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Object> verificarSistemaCompleto() {
+        List<AnomaliaAuditoriaResponse> anomaliasCadena = verificarCadenaDetallado();
+        List<AnomaliaAuditoriaResponse> anomaliasBD = verificarIntegridadDatosBD();
+
+        List<AnomaliaAuditoriaResponse> anomalias = new ArrayList<>();
+        anomalias.addAll(anomaliasCadena);
+        anomalias.addAll(anomaliasBD);
+
+        java.util.Map<String, Object> response = new java.util.HashMap<>();
+        boolean sistemaIntegro = anomalias.isEmpty();
+        
+        response.put("valida", sistemaIntegro);
+        response.put("anomalias", anomalias);
+
+        return response;
+    }
+
+    @Override
+    public java.util.Map<String, Object> reconciliarIntegridadSistema(String motivo) {
+        lock.lock();
+        try {
+            log.info("INICIANDO RECONCILIACIÓN FORENSE DE INTEGRIDAD DEL SISTEMA Y BLOCKCHAIN...");
+            
+            // 1. Resellar todos los productos legítimos
+            List<Producto> productos = productoRepository.findAll();
+            for (Producto prod : productos) {
+                prod.firmarIntegridad();
+                productoRepository.save(prod);
+            }
+
+            // 2. Resellar todas las ventas legítimas
+            List<Venta> ventas = ventaRepository.findAll();
+            for (Venta venta : ventas) {
+                venta.firmarIntegridad();
+                ventaRepository.save(venta);
+            }
+
+            // 3. Resellar todas las cajas legítimas
+            List<Caja> cajas = cajaRepository.findAll();
+            for (Caja caja : cajas) {
+                caja.firmarIntegridad();
+                cajaRepository.save(caja);
+            }
+
+            // 4. Reconstruir y firmar toda la cadena de bloques existente
+            List<BlockchainAudit> bloques = repository.findAll(Sort.by(Sort.Direction.ASC, "id"));
+            String hashAnterior = HASH_GENESIS;
+            for (BlockchainAudit bloque : bloques) {
+                bloque.setHashAnterior(hashAnterior);
+                String hashActual = generarHash(construirContenidoHash(bloque));
+                bloque.setHashActual(hashActual);
+                bloque.setFirmaHmac(generarHmac(construirContenidoHmac(bloque)));
+                repository.save(bloque);
+                hashAnterior = hashActual;
+            }
+
+            // 5. Asentar un nuevo bloque inmutable documentando la remediación autorizada
+            org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            String usuarioAdmin = (auth != null && auth.getName() != null) ? auth.getName() : "SUPER_ADMIN";
+            String descripcionRemediacion = (motivo != null && !motivo.isBlank()) 
+                    ? motivo.trim() 
+                    : "Reconciliación forense y resellado criptográfico de integridad del sistema.";
+
+            registrarBloque(
+                    usuarioAdmin,
+                    "RECONCILIACION_FORENSE",
+                    descripcionRemediacion,
+                    "SISTEMA",
+                    "REMEDIACION_INTEGRIDAD",
+                    java.util.Map.of("motivo", descripcionRemediacion, "timestamp", LocalDateTime.now().toString())
+            );
+
+            log.info("RECONCILIACIÓN FORENSE COMPLETADA CON ÉXITO.");
+
+            java.util.Map<String, Object> response = new java.util.HashMap<>();
+            response.put("valida", true);
+            response.put("mensaje", "La integridad del sistema y la cadena blockchain han sido reconciliadas y selladas exitosamente.");
+            response.put("productosSellados", productos.size());
+            response.put("ventasSelladas", ventas.size());
+            response.put("cajasSelladas", cajas.size());
+            response.put("bloquesReconciliados", bloques.size() + 1);
+
+            return response;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private List<AnomaliaAuditoriaResponse> verificarIntegridadDatosBD() {
+        List<AnomaliaAuditoriaResponse> anomalias = new ArrayList<>();
+
+        List<Producto> productos = productoRepository.findAll();
+        for (Producto prod : productos) {
+            if (!prod.esIntegro()) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "PRODUCTO",
+                    prod.getCodigoProducto(),
+                    "Stock / Precio",
+                    "Firma Criptográfica Segura",
+                    "Datos Modificados Manualmente",
+                    "Alerta: El registro del producto fue alterado directamente en la base de datos."
+                ));
+            }
+        }
+
+        List<Venta> ventas = ventaRepository.findAll();
+        for (Venta venta : ventas) {
+            if (!venta.esIntegro()) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "VENTA",
+                    venta.getNumeroVenta(),
+                    "Totales / Estado",
+                    "Firma Criptográfica Segura",
+                    "Montos Alterados",
+                    "Alerta: Los importes o el estado de esta venta fueron modificados ilegalmente."
+                ));
+            }
+        }
+
+        List<Caja> cajas = cajaRepository.findAll();
+        for (Caja caja : cajas) {
+            if (!caja.esIntegro()) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "CAJA",
+                    "Turno #" + caja.getId(),
+                    "Montos / Estado",
+                    "Firma Criptográfica Segura",
+                    "Arqueo o Estado Alterado",
+                    "Alerta: El registro del turno de caja #" + caja.getId() + " fue modificado directamente en la base de datos."
+                ));
+            }
+        }
+
+        return anomalias;
     }
 
 
