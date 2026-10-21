@@ -16,30 +16,32 @@ import com.maelespecieros.backend.repositories.UsuarioRepository;
 
 
 @Component
+@lombok.extern.slf4j.Slf4j
 public class DataInitializer implements CommandLineRunner {
 
 
 
     private final UsuarioRepository usuarioRepository;
-
-
     private final PasswordEncoder passwordEncoder;
-
-
-
+    private final com.maelespecieros.backend.repositories.CajaRepository cajaRepository;
+    private final com.maelespecieros.backend.repositories.ProductoRepository productoRepository;
+    private final com.maelespecieros.backend.repositories.VentaRepository ventaRepository;
+    private final com.maelespecieros.backend.repositories.EgresoCajaRepository egresoCajaRepository;
 
     public DataInitializer(
-
             UsuarioRepository usuarioRepository,
-
-            PasswordEncoder passwordEncoder
-
+            PasswordEncoder passwordEncoder,
+            com.maelespecieros.backend.repositories.CajaRepository cajaRepository,
+            com.maelespecieros.backend.repositories.ProductoRepository productoRepository,
+            com.maelespecieros.backend.repositories.VentaRepository ventaRepository,
+            com.maelespecieros.backend.repositories.EgresoCajaRepository egresoCajaRepository
     ){
-
         this.usuarioRepository = usuarioRepository;
-
         this.passwordEncoder = passwordEncoder;
-
+        this.cajaRepository = cajaRepository;
+        this.productoRepository = productoRepository;
+        this.ventaRepository = ventaRepository;
+        this.egresoCajaRepository = egresoCajaRepository;
     }
 
 
@@ -123,23 +125,23 @@ public class DataInitializer implements CommandLineRunner {
 
 
 
-            System.out.println(
+            log.info(
                     "================================="
             );
 
-            System.out.println(
+            log.info(
                     "ROOT creado correctamente"
             );
 
-            System.out.println(
+            log.info(
                     "Usuario: root"
             );
 
-            System.out.println(
+            log.info(
                     "Password temporal: root123"
             );
 
-            System.out.println(
+            log.info(
                     "================================="
             );
 
@@ -147,8 +149,30 @@ public class DataInitializer implements CommandLineRunner {
 
         }
 
+        // Sellar criptográficamente solo registros históricos que nunca fueron sellados (hash_integridad IS NULL)
+        java.util.List<com.maelespecieros.backend.entities.Caja> cajasSinHash = cajaRepository.findByHashIntegridadIsNull();
+        for (com.maelespecieros.backend.entities.Caja caja : cajasSinHash) {
+            caja.firmarIntegridad();
+            cajaRepository.save(caja);
+        }
 
+        java.util.List<com.maelespecieros.backend.entities.Producto> productosSinHash = productoRepository.findByHashIntegridadIsNull();
+        for (com.maelespecieros.backend.entities.Producto producto : productosSinHash) {
+            producto.firmarIntegridad();
+            productoRepository.save(producto);
+        }
 
+        java.util.List<com.maelespecieros.backend.entities.Venta> ventasSinHash = ventaRepository.findByHashIntegridadIsNull();
+        for (com.maelespecieros.backend.entities.Venta venta : ventasSinHash) {
+            venta.firmarIntegridad();
+            ventaRepository.save(venta);
+        }
+
+        java.util.List<com.maelespecieros.backend.entities.EgresoCaja> egresosSinHash = egresoCajaRepository.findByHashIntegridadIsNull();
+        for (com.maelespecieros.backend.entities.EgresoCaja egreso : egresosSinHash) {
+            egreso.firmarIntegridad();
+            egresoCajaRepository.save(egreso);
+        }
     }
 
 

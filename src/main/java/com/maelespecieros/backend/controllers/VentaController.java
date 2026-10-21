@@ -14,6 +14,7 @@ import com.maelespecieros.backend.common.ApiResponse;
 import com.maelespecieros.backend.common.Messages;
 import com.maelespecieros.backend.dto.request.VentaRequest;
 import com.maelespecieros.backend.dto.response.VentaResponse;
+import com.maelespecieros.backend.dto.response.ComparacionVentasResponse;
 import com.maelespecieros.backend.services.VentaService;
 
 import jakarta.validation.Valid;
@@ -101,6 +102,47 @@ public class VentaController {
         byte[] pdf = service.generarComprobanteVenta(id);
         return ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"comprobante_" + id + ".pdf\"")
+                .body(pdf);
+    }
+
+    @PostMapping("/{id}/enviar-email")
+    public ResponseEntity<ApiResponse<Void>> enviarComprobanteEmail(
+            @PathVariable Long id,
+            @RequestParam(required = false) String email,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
+
+        String emailDestino = email;
+        if ((emailDestino == null || emailDestino.isBlank()) && body != null && body.containsKey("email")) {
+            emailDestino = body.get("email");
+        }
+
+        service.enviarComprobantePorEmail(id, emailDestino);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Comprobante enviado exitosamente por correo electrónico.",
+                        null));
+    }
+
+    @GetMapping("/comparacion")
+    public ResponseEntity<ApiResponse<ComparacionVentasResponse>> compararVentas(
+            @RequestParam(defaultValue = "MES") String periodo) {
+
+        ComparacionVentasResponse response = service.compararVentas(periodo);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Comparación de ventas obtenida correctamente.",
+                        response));
+    }
+
+    @GetMapping(value = "/comparacion/pdf", produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> descargarComparacionPdf(@RequestParam(defaultValue = "MES") String periodo) {
+        byte[] pdf = service.generarComparacionPdf(periodo);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"comparacion_" + periodo.toLowerCase() + ".pdf\"")
                 .body(pdf);
     }
 

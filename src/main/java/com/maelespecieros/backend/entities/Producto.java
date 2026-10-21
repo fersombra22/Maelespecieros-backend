@@ -109,32 +109,60 @@ public class Producto {
 
     public boolean esIntegro() {
         if (this.hashIntegridad == null) return false;
-        return this.hashIntegridad.equals(calcularHash());
+        String hashCalculado = calcularHash();
+        if (this.hashIntegridad.equals(hashCalculado)) return true;
+        return this.hashIntegridad.equals(calcularHashLegacy());
     }
 
     private String calcularHash() {
         try {
-            // Unimos los datos vitales que no queremos que nos alteren por detrás
+            String codigoStr = this.codigoProducto != null ? this.codigoProducto : "";
             String precioEfectivoStr = this.precioEfectivo != null ? this.precioEfectivo.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String costoStr = this.costo != null ? this.costo.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String stockStr = this.stock != null ? this.stock.toString() : "0";
+            String activoStr = this.activo != null ? this.activo.toString() : "true";
             
-            String datosVitales = this.codigoProducto + "|" + 
+            String datosVitales = codigoStr + "|" + 
                                   precioEfectivoStr + "|" + 
-                                  this.stock + "|" + 
-                                  this.activo;
+                                  costoStr + "|" +
+                                  stockStr + "|" + 
+                                  activoStr;
 
-            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hashBytes = digest.digest((datosVitales + SECRET_KEY).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hashBytes) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
+            return generarSha256(datosVitales);
         } catch (Exception e) {
             throw new RuntimeException("Error al calcular la integridad del producto", e);
         }
+    }
+
+    private String calcularHashLegacy() {
+        try {
+            String codigoStr = this.codigoProducto != null ? this.codigoProducto : "";
+            String precioEfectivoStr = this.precioEfectivo != null ? this.precioEfectivo.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String stockStr = this.stock != null ? this.stock.toString() : "0";
+            String activoStr = this.activo != null ? this.activo.toString() : "true";
+            
+            String datosVitales = codigoStr + "|" + 
+                                  precioEfectivoStr + "|" + 
+                                  stockStr + "|" + 
+                                  activoStr;
+
+            return generarSha256(datosVitales);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private String generarSha256(String datosVitales) throws Exception {
+        java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+        byte[] hashBytes = digest.digest((datosVitales + SECRET_KEY).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hashBytes) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) hexString.append('0');
+            hexString.append(hex);
+        }
+        return hexString.toString();
     }
 
     @PrePersist

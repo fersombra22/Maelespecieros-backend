@@ -62,6 +62,21 @@ public interface BlockchainService {
      */
     boolean verificarCadena();
 
+    java.util.Map<String, Object> verificarSistemaCompleto();
+
+    java.util.Map<String, Object> reconciliarIntegridadSistema(String motivo);
+
+    /*
+     * =====================================================
+     * VERIFICACIÓN COMPLETA DETALLADA
+     * Recorre toda la cadena y retorna una lista
+     * de anomalías encontradas.
+     * =====================================================
+     */
+    java.util.List<com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse> verificarCadenaDetallado();
+
+
+
 
 
 
@@ -158,6 +173,12 @@ public interface BlockchainService {
      * =====================================================
      */
     boolean verificarUltimosBloques(
+
+            int cantidad
+
+    );
+
+    java.util.List<com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse> verificarUltimosBloquesDetallado(
 
             int cantidad
 

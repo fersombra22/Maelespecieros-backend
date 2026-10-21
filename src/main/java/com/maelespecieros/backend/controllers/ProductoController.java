@@ -19,6 +19,7 @@ import com.maelespecieros.backend.common.Messages;
 import com.maelespecieros.backend.dto.request.ProductoRequest;
 import com.maelespecieros.backend.dto.response.ProductoResponse;
 import com.maelespecieros.backend.services.ProductoService;
+import com.maelespecieros.backend.services.ExcelService;
 
 
 import jakarta.validation.Valid;
@@ -33,14 +34,17 @@ public class ProductoController {
 
 
     private final ProductoService service;
+    private final ExcelService excelService;
 
 
 
     public ProductoController(
-            ProductoService service
+            ProductoService service,
+            ExcelService excelService
     ){
 
         this.service = service;
+        this.excelService = excelService;
 
     }
 
@@ -49,9 +53,9 @@ public class ProductoController {
 
 
 
-    // SOLO ADMIN
+    // SUPER_ADMIN, ADMIN Y EMPLEADO
 
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','EMPLEADO')")
     @PostMapping
     public ResponseEntity<ApiResponse<ProductoResponse>> crear(
 
@@ -109,6 +113,21 @@ public class ProductoController {
 
         );
 
+    }
+
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','EMPLEADO')")
+    @GetMapping("/inactivos")
+    public ResponseEntity<ApiResponse<Page<ProductoResponse>>> listarInactivos(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size
+    ){
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        Messages.LIST,
+                        service.listarInactivos(PageRequest.of(page, size))
+                )
+        );
     }
 
 
@@ -317,6 +336,77 @@ public class ProductoController {
 
     }
 
+    // SOLO ADMIN Y SUPER ADMIN
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+    @PutMapping("/{id}/activar")
+    public ResponseEntity<ApiResponse<Void>> activar(
+            @PathVariable Long id
+    ){
+        service.activar(id);
 
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Producto reactivado exitosamente.",
+                        null
+                )
+        );
+    }
+
+    // SOLO ADMIN Y SUPER ADMIN
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+    @PutMapping("/aumento-masivo")
+    public ResponseEntity<ApiResponse<Void>> aumentoMasivo(
+            @Valid @RequestBody com.maelespecieros.backend.dto.request.AumentoMasivoRequest request
+    ) {
+
+        service.aumentoMasivo(request.ids(), request.porcentaje());
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Precios actualizados correctamente",
+                        null
+                )
+        );
+    }
+
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+    @PostMapping(value = "/importar", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<Void>> importarExcel(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file
+    ) {
+        try {
+            excelService.importarProductos(file);
+            return ResponseEntity.ok(
+                    new ApiResponse<>(
+                            true,
+                            "Productos importados correctamente",
+                            null
+                    )
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse<>(
+                            false,
+                            "Error al importar archivo: " + e.getMessage(),
+                            null
+                    ));
+        }
+    }
+
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','EMPLEADO')")
+    @GetMapping("/{id}/historial-precios")
+    public ResponseEntity<ApiResponse<java.util.List<com.maelespecieros.backend.dto.response.HistorialPrecioResponse>>> obtenerHistorial(
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Historial de precios obtenido",
+                        service.obtenerHistorialPrecios(id)
+                )
+        );
+    }
 
 }

@@ -9,4 +9,6 @@ public interface ExcelService {
     byte[] exportarAuditoria();  
 
     byte[] exportarStockBajo();   
+
+    void importarProductos(org.springframework.web.multipart.MultipartFile file) throws Exception;
 }

@@ -20,13 +20,13 @@ import com.maelespecieros.backend.entities.Venta;
 public interface VentaRepository extends JpaRepository<Venta, Long> {
 
 
-    @EntityGraph(attributePaths = {"detalles", "usuario"})
+    @EntityGraph(attributePaths = {"usuario", "cliente"})
     Page<Venta> findAll(Pageable pageable);
 
-    @EntityGraph(attributePaths = {"detalles", "usuario"})
+    @EntityGraph(attributePaths = {"detalles", "detalles.producto", "usuario", "cliente"})
     Optional<Venta> findById(Long id);
 
-    @EntityGraph(attributePaths = {"detalles", "usuario"})
+    @EntityGraph(attributePaths = {"detalles", "detalles.producto", "usuario", "cliente"})
     Optional<Venta> findByNumeroVenta(
             String numeroVenta
     );
@@ -51,5 +51,49 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             LocalDateTime fin
     );
 
+    @Query("""
+            SELECT COALESCE(SUM(v.total), 0)
+            FROM Venta v
+            WHERE v.estado = 'COMPLETADA'
+            AND v.fecha >= :inicio AND v.fecha <= :fin
+            """)
+    BigDecimal obtenerTotalFacturadoEntreFechas(LocalDateTime inicio, LocalDateTime fin);
 
+    @Query("""
+            SELECT v.formaPago, COALESCE(SUM(v.total), 0)
+            FROM Venta v
+            WHERE v.estado = 'COMPLETADA'
+            AND v.fecha >= :inicio AND v.fecha <= :fin
+            GROUP BY v.formaPago
+            """)
+    List<Object[]> obtenerTotalesPorMetodoPagoEntreFechas(LocalDateTime inicio, LocalDateTime fin);
+
+    @Query("""
+            SELECT COUNT(v)
+            FROM Venta v
+            WHERE v.estado = 'COMPLETADA'
+            AND v.fecha >= :inicio AND v.fecha <= :fin
+            """)
+    Long contarVentasEntreFechas(LocalDateTime inicio, LocalDateTime fin);
+
+    @Query("""
+            SELECT new com.maelespecieros.backend.dto.response.VentasPorMetodoPagoResponse(v.formaPago, SUM(v.total))
+            FROM Venta v
+            WHERE v.estado = 'COMPLETADA'
+            GROUP BY v.formaPago
+            """)
+    List<com.maelespecieros.backend.dto.response.VentasPorMetodoPagoResponse> obtenerVentasPorMetodoPago();
+
+    @Query("""
+            SELECT new com.maelespecieros.backend.dto.response.TopProductoResponse(p.nombre, SUM(d.cantidad), SUM(d.subtotal))
+            FROM DetalleVenta d
+            JOIN d.venta v
+            JOIN d.producto p
+            WHERE v.estado = 'COMPLETADA'
+            GROUP BY p.nombre
+            ORDER BY SUM(d.cantidad) DESC
+            """)
+    List<com.maelespecieros.backend.dto.response.TopProductoResponse> obtenerTopProductos(Pageable pageable);
+
+    List<Venta> findByHashIntegridadIsNull();
 }

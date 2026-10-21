@@ -7,6 +7,7 @@ import java.util.List;
 
 import com.maelespecieros.backend.dto.request.VentaRequest;
 import com.maelespecieros.backend.dto.response.VentaResponse;
+import com.maelespecieros.backend.dto.response.ComparacionVentasResponse;
 import com.maelespecieros.backend.entities.FormaPago;
 
 public interface VentaService {
@@ -17,6 +18,8 @@ public interface VentaService {
 
     byte[] generarComprobanteVenta(Long id);
 
+    void enviarComprobantePorEmail(Long id, String destinatario);
+
     Page<VentaResponse> listar(Pageable pageable);
 
     VentaResponse obtenerPorId(Long id);
@@ -24,5 +27,9 @@ public interface VentaService {
     VentaResponse obtenerPorNumero(String numeroVenta);
 
     void anular(Long id);
+
+    ComparacionVentasResponse compararVentas(String periodo);
+
+    byte[] generarComparacionPdf(String periodo);
 
 }

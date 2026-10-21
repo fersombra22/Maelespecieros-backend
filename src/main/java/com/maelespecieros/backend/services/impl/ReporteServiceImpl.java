@@ -29,15 +29,18 @@ public class ReporteServiceImpl implements ReporteService {
     private final ProductoRepository productoRepository;
     private final VentaRepository ventaRepository;
     private final BlockchainService blockchainService;
+    private final com.maelespecieros.backend.repositories.HistorialPrecioRepository historialPrecioRepository;
 
     public ReporteServiceImpl(
             ProductoRepository productoRepository,
             VentaRepository ventaRepository,
-            BlockchainService blockchainService) {
+            BlockchainService blockchainService,
+            com.maelespecieros.backend.repositories.HistorialPrecioRepository historialPrecioRepository) {
 
         this.productoRepository = productoRepository;
         this.ventaRepository = ventaRepository;
         this.blockchainService = blockchainService;
+        this.historialPrecioRepository = historialPrecioRepository;
     }
 
     @Override
@@ -381,6 +384,63 @@ public class ReporteServiceImpl implements ReporteService {
 
         tabla.addCell(celda);
 
+    }
+
+    @Override
+    public byte[] generarReporteHistorialPrecios() {
+        try {
+            Document document = new Document();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            PdfWriter.getInstance(document, out);
+            document.open();
+
+            Font titulo = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, Color.BLACK);
+            Paragraph encabezado = new Paragraph("HISTORIAL DE PRECIOS GLOBALES", titulo);
+            encabezado.setAlignment(Paragraph.ALIGN_CENTER);
+            document.add(encabezado);
+            document.add(new Paragraph(" "));
+
+            PdfPTable tabla = new PdfPTable(6);
+            tabla.setWidthPercentage(100);
+            tabla.setWidths(new float[]{3, 2, 2, 2, 2, 3});
+
+            agregarCabecera(tabla, "Producto");
+            agregarCabecera(tabla, "Fecha");
+            agregarCabecera(tabla, "P. Anterior");
+            agregarCabecera(tabla, "P. Nuevo");
+            agregarCabecera(tabla, "Var %");
+            agregarCabecera(tabla, "Usuario");
+
+            List<com.maelespecieros.backend.entities.HistorialPrecio> historiales = 
+                historialPrecioRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "fechaCambio"));
+
+            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+            for (com.maelespecieros.backend.entities.HistorialPrecio h : historiales) {
+                tabla.addCell(new PdfPCell(new Phrase(h.getProducto().getNombre())));
+                tabla.addCell(new PdfPCell(new Phrase(h.getFechaCambio().format(formatter))));
+                tabla.addCell(new PdfPCell(new Phrase("$" + h.getPrecioAnterior())));
+                tabla.addCell(new PdfPCell(new Phrase("$" + h.getPrecioNuevo())));
+                
+                java.math.BigDecimal variacion = java.math.BigDecimal.ZERO;
+                if (h.getPrecioAnterior().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                    variacion = h.getPrecioNuevo().subtract(h.getPrecioAnterior())
+                            .divide(h.getPrecioAnterior(), 4, java.math.RoundingMode.HALF_UP)
+                            .multiply(new java.math.BigDecimal("100"))
+                            .setScale(2, java.math.RoundingMode.HALF_UP);
+                }
+                tabla.addCell(new PdfPCell(new Phrase((variacion.compareTo(java.math.BigDecimal.ZERO) > 0 ? "+" : "") + variacion + "%")));
+                
+                tabla.addCell(new PdfPCell(new Phrase(h.getUsuarioResponsable())));
+            }
+
+            document.add(tabla);
+            document.close();
+
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Error al generar reporte de historial de precios", e);
+        }
     }
 
 }
