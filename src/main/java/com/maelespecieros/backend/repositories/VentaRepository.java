@@ -95,5 +95,5 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             """)
     List<com.maelespecieros.backend.dto.response.TopProductoResponse> obtenerTopProductos(Pageable pageable);
 
-
+    List<Venta> findByHashIntegridadIsNull();
 }

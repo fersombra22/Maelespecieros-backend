@@ -34,3 +34,10 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Secrets & Database ###
+*.env
+.env
+*.db
+*.db-wal
+*.db-shm

@@ -26,19 +26,22 @@ public class DataInitializer implements CommandLineRunner {
     private final com.maelespecieros.backend.repositories.CajaRepository cajaRepository;
     private final com.maelespecieros.backend.repositories.ProductoRepository productoRepository;
     private final com.maelespecieros.backend.repositories.VentaRepository ventaRepository;
+    private final com.maelespecieros.backend.repositories.EgresoCajaRepository egresoCajaRepository;
 
     public DataInitializer(
             UsuarioRepository usuarioRepository,
             PasswordEncoder passwordEncoder,
             com.maelespecieros.backend.repositories.CajaRepository cajaRepository,
             com.maelespecieros.backend.repositories.ProductoRepository productoRepository,
-            com.maelespecieros.backend.repositories.VentaRepository ventaRepository
+            com.maelespecieros.backend.repositories.VentaRepository ventaRepository,
+            com.maelespecieros.backend.repositories.EgresoCajaRepository egresoCajaRepository
     ){
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.cajaRepository = cajaRepository;
         this.productoRepository = productoRepository;
         this.ventaRepository = ventaRepository;
+        this.egresoCajaRepository = egresoCajaRepository;
     }
 
 
@@ -146,28 +149,29 @@ public class DataInitializer implements CommandLineRunner {
 
         }
 
-        // Sellar criptográficamente cajas históricas si no tienen hash o están desactualizadas
-        for (com.maelespecieros.backend.entities.Caja caja : cajaRepository.findAll()) {
-            if (!caja.esIntegro()) {
-                caja.firmarIntegridad();
-                cajaRepository.save(caja);
-            }
+        // Sellar criptográficamente solo registros históricos que nunca fueron sellados (hash_integridad IS NULL)
+        java.util.List<com.maelespecieros.backend.entities.Caja> cajasSinHash = cajaRepository.findByHashIntegridadIsNull();
+        for (com.maelespecieros.backend.entities.Caja caja : cajasSinHash) {
+            caja.firmarIntegridad();
+            cajaRepository.save(caja);
         }
 
-        // Sellar criptográficamente productos históricos si no tienen hash o están desactualizados
-        for (com.maelespecieros.backend.entities.Producto producto : productoRepository.findAll()) {
-            if (!producto.esIntegro()) {
-                producto.firmarIntegridad();
-                productoRepository.save(producto);
-            }
+        java.util.List<com.maelespecieros.backend.entities.Producto> productosSinHash = productoRepository.findByHashIntegridadIsNull();
+        for (com.maelespecieros.backend.entities.Producto producto : productosSinHash) {
+            producto.firmarIntegridad();
+            productoRepository.save(producto);
         }
 
-        // Sellar criptográficamente ventas históricas si no tienen hash o están desactualizadas
-        for (com.maelespecieros.backend.entities.Venta venta : ventaRepository.findAll()) {
-            if (!venta.esIntegro()) {
-                venta.firmarIntegridad();
-                ventaRepository.save(venta);
-            }
+        java.util.List<com.maelespecieros.backend.entities.Venta> ventasSinHash = ventaRepository.findByHashIntegridadIsNull();
+        for (com.maelespecieros.backend.entities.Venta venta : ventasSinHash) {
+            venta.firmarIntegridad();
+            ventaRepository.save(venta);
+        }
+
+        java.util.List<com.maelespecieros.backend.entities.EgresoCaja> egresosSinHash = egresoCajaRepository.findByHashIntegridadIsNull();
+        for (com.maelespecieros.backend.entities.EgresoCaja egreso : egresosSinHash) {
+            egreso.firmarIntegridad();
+            egresoCajaRepository.save(egreso);
         }
     }
 

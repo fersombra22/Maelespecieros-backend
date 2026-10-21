@@ -73,6 +73,7 @@ public class Usuario {
     /*
      * Password BCrypt
      */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @Column(
             nullable = false
     )

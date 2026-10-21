@@ -729,17 +729,10 @@ public class BlockchainServiceImpl implements BlockchainService {
                 cajaRepository.save(caja);
             }
 
-            // 4. Reconstruir y firmar toda la cadena de bloques existente
-            List<BlockchainAudit> bloques = repository.findAll(Sort.by(Sort.Direction.ASC, "id"));
-            String hashAnterior = HASH_GENESIS;
-            for (BlockchainAudit bloque : bloques) {
-                bloque.setHashAnterior(hashAnterior);
-                String hashActual = generarHash(construirContenidoHash(bloque));
-                bloque.setHashActual(hashActual);
-                bloque.setFirmaHmac(generarHmac(construirContenidoHmac(bloque)));
-                repository.save(bloque);
-                hashAnterior = hashActual;
-            }
+            // 4. En un sistema forense inmutable (apoyado por el trigger SQLite trg_blockchain_no_update),
+            // los bloques históricos no se modifican retroactivamente. Se asienta un nuevo bloque
+            // de remediación inmutable como prueba legal de la intervención.
+            long totalBloquesActuales = repository.count();
 
             // 5. Asentar un nuevo bloque inmutable documentando la remediación autorizada
             org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
@@ -765,12 +758,103 @@ public class BlockchainServiceImpl implements BlockchainService {
             response.put("productosSellados", productos.size());
             response.put("ventasSelladas", ventas.size());
             response.put("cajasSelladas", cajas.size());
-            response.put("bloquesReconciliados", bloques.size() + 1);
+            response.put("bloquesReconciliados", totalBloquesActuales + 1);
 
             return response;
         } finally {
             lock.unlock();
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AnomaliaAuditoriaResponse> verificarUltimosBloquesDetallado(int cantidad) {
+        if (cantidad <= 0) {
+            cantidad = 100;
+        }
+        Pageable pageable = org.springframework.data.domain.PageRequest.of(0, cantidad);
+        Page<BlockchainAudit> pagina = repository.findAllByOrderByIdDesc(pageable);
+        List<BlockchainAudit> bloques = new ArrayList<>(pagina.getContent());
+        if (bloques.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Collections.reverse(bloques);
+
+        List<AnomaliaAuditoriaResponse> anomalias = new ArrayList<>();
+        BlockchainAudit primerBloque = bloques.get(0);
+        String hashAnterior = HASH_GENESIS;
+
+        BlockchainAudit bloqueAnterior = repository
+                .findTopByIdLessThanOrderByIdDesc(primerBloque.getId())
+                .orElse(null);
+
+        if (bloqueAnterior != null) {
+            hashAnterior = bloqueAnterior.getHashActual();
+        }
+
+        for (BlockchainAudit bloque : bloques) {
+            if (!validarBloque(bloque)) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "BLOCKCHAIN",
+                    bloque.getUuid(),
+                    "Datos Básicos",
+                    "Validación Estructural",
+                    "Datos Faltantes",
+                    "Alerta: Bloque " + bloque.getId() + " con datos incompletos."
+                ));
+            }
+
+            boolean hashAnteriorValido = bloque.getHashAnterior() != null &&
+                    MessageDigest.isEqual(
+                            hashAnterior.getBytes(StandardCharsets.UTF_8),
+                            bloque.getHashAnterior().getBytes(StandardCharsets.UTF_8)
+                    );
+
+            if (!hashAnteriorValido) {
+                anomalias.add(new AnomaliaAuditoriaResponse(
+                    "BLOCKCHAIN",
+                    bloque.getUuid(),
+                    "Hash Anterior",
+                    "Inmutabilidad de la Cadena",
+                    "Ruptura de Enlace",
+                    "Alerta: Ruptura de enlace antes del bloque " + bloque.getId()
+                ));
+            }
+
+            if (bloque.getHashActual() != null) {
+                String hashCalc = generarHash(construirContenidoHash(bloque));
+                if (!MessageDigest.isEqual(hashCalc.getBytes(StandardCharsets.UTF_8), bloque.getHashActual().getBytes(StandardCharsets.UTF_8))) {
+                    anomalias.add(new AnomaliaAuditoriaResponse(
+                        "BLOCKCHAIN",
+                        bloque.getUuid(),
+                        "Hash Actual",
+                        "Firma SHA-256",
+                        "Hash Modificado",
+                        "Alerta: El hash del bloque " + bloque.getId() + " no coincide. Registro alterado."
+                    ));
+                }
+            }
+
+            if (bloque.getFirmaHmac() != null) {
+                String hmacCalc = generarHmac(construirContenidoHmac(bloque));
+                if (!MessageDigest.isEqual(hmacCalc.getBytes(StandardCharsets.UTF_8), bloque.getFirmaHmac().getBytes(StandardCharsets.UTF_8))) {
+                    anomalias.add(new AnomaliaAuditoriaResponse(
+                        "BLOCKCHAIN",
+                        bloque.getUuid(),
+                        "Firma HMAC",
+                        "Autenticidad HMAC",
+                        "Firma Inválida",
+                        "Alerta: Firma HMAC inválida en bloque " + bloque.getId()
+                    ));
+                }
+            }
+
+            if (bloque.getHashActual() != null) {
+                hashAnterior = bloque.getHashActual();
+            }
+        }
+
+        return anomalias;
     }
 
     private List<AnomaliaAuditoriaResponse> verificarIntegridadDatosBD() {

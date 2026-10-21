@@ -23,6 +23,9 @@ public record CajaResponseDTO(
         BigDecimal totalCredito,
         BigDecimal totalTransferencia,
         BigDecimal totalDigital,
-        Long cantidadVentas
+        Long cantidadVentas,
+        BigDecimal totalEgresosEfectivo,
+        BigDecimal totalEgresosTransferencia,
+        BigDecimal totalEgresos
 ) {
 }

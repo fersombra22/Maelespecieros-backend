@@ -105,6 +105,26 @@ public class VentaController {
                 .body(pdf);
     }
 
+    @PostMapping("/{id}/enviar-email")
+    public ResponseEntity<ApiResponse<Void>> enviarComprobanteEmail(
+            @PathVariable Long id,
+            @RequestParam(required = false) String email,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
+
+        String emailDestino = email;
+        if ((emailDestino == null || emailDestino.isBlank()) && body != null && body.containsKey("email")) {
+            emailDestino = body.get("email");
+        }
+
+        service.enviarComprobantePorEmail(id, emailDestino);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Comprobante enviado exitosamente por correo electrónico.",
+                        null));
+    }
+
     @GetMapping("/comparacion")
     public ResponseEntity<ApiResponse<ComparacionVentasResponse>> compararVentas(
             @RequestParam(defaultValue = "MES") String periodo) {

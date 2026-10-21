@@ -2,7 +2,9 @@ package com.maelespecieros.backend.services.impl;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -19,11 +21,13 @@ import com.maelespecieros.backend.dto.response.EstadoActualCajaDTO;
 import com.maelespecieros.backend.entities.Caja;
 import com.maelespecieros.backend.entities.EstadoCaja;
 import com.maelespecieros.backend.entities.FormaPago;
+import com.maelespecieros.backend.entities.TipoMedioEgreso;
 import com.maelespecieros.backend.entities.Usuario;
 import com.maelespecieros.backend.exceptions.BusinessException;
 import com.maelespecieros.backend.exceptions.ResourceNotFoundException;
 import com.maelespecieros.backend.mappers.CajaMapper;
 import com.maelespecieros.backend.repositories.CajaRepository;
+import com.maelespecieros.backend.repositories.EgresoCajaRepository;
 import com.maelespecieros.backend.repositories.UsuarioRepository;
 import com.maelespecieros.backend.repositories.VentaRepository;
 import com.maelespecieros.backend.services.BlockchainService;
@@ -36,6 +40,7 @@ public class CajaServiceImpl implements CajaService {
     private final CajaRepository cajaRepository;
     private final VentaRepository ventaRepository;
     private final UsuarioRepository usuarioRepository;
+    private final EgresoCajaRepository egresoCajaRepository;
     private final CajaMapper cajaMapper;
     private final BlockchainService blockchainService;
 
@@ -43,12 +48,14 @@ public class CajaServiceImpl implements CajaService {
             CajaRepository cajaRepository,
             VentaRepository ventaRepository,
             UsuarioRepository usuarioRepository,
+            EgresoCajaRepository egresoCajaRepository,
             CajaMapper cajaMapper,
             BlockchainService blockchainService
     ) {
         this.cajaRepository = cajaRepository;
         this.ventaRepository = ventaRepository;
         this.usuarioRepository = usuarioRepository;
+        this.egresoCajaRepository = egresoCajaRepository;
         this.cajaMapper = cajaMapper;
         this.blockchainService = blockchainService;
     }
@@ -141,16 +148,23 @@ public class CajaServiceImpl implements CajaService {
 
         Caja guardada = cajaRepository.save(caja);
 
+        Map<String, Object> payloadApertura = new LinkedHashMap<>();
+        payloadApertura.put("cajaId", guardada.getId());
+        payloadApertura.put("montoInicial", guardada.getMontoInicial());
+        payloadApertura.put("fechaApertura", guardada.getFechaApertura() != null ? guardada.getFechaApertura().toString() : null);
+        payloadApertura.put("cajero", guardada.getUsuario() != null ? guardada.getUsuario().getUsername() : "SISTEMA");
+        payloadApertura.put("observaciones", guardada.getObservaciones());
+
         blockchainService.registrarBloque(
                 getUsernameAutenticado(),
                 "APERTURA_CAJA",
                 "Apertura de caja ID: " + guardada.getId() + " con monto inicial: $" + guardada.getMontoInicial(),
                 "CAJA",
                 guardada.getId().toString(),
-                guardada
+                payloadApertura
         );
 
-        return cajaMapper.toDTO(guardada, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0L);
+        return cajaMapper.toDTO(guardada, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0L, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
     @Override
@@ -161,10 +175,20 @@ public class CajaServiceImpl implements CajaService {
         LocalDateTime ahora = LocalDateTime.now();
         DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), ahora);
 
+        BigDecimal egresosEfectivo = egresoCajaRepository.sumarPorCajaYTipoMedio(caja.getId(), TipoMedioEgreso.EFECTIVO);
+        if (egresosEfectivo == null) egresosEfectivo = BigDecimal.ZERO;
+
+        BigDecimal egresosDigital = egresoCajaRepository.sumarPorCajaYTipoMedio(caja.getId(), TipoMedioEgreso.TRANSFERENCIA);
+        if (egresosDigital == null) egresosDigital = BigDecimal.ZERO;
+
+        BigDecimal totalEgresos = egresosEfectivo.add(egresosDigital);
+
         BigDecimal montoInicial = caja.getMontoInicial() != null ? caja.getMontoInicial() : BigDecimal.ZERO;
         BigDecimal montoVentas = desglose.totalVentas();
-        BigDecimal efectivoEsperado = montoInicial.add(desglose.totalEfectivo());
-        BigDecimal montoEsperadoTotal = montoInicial.add(montoVentas);
+        // Efectivo esperado en cajón físico restando los egresos en efectivo
+        BigDecimal efectivoEsperado = montoInicial.add(desglose.totalEfectivo()).subtract(egresosEfectivo);
+        // Monto total esperado del turno restando todos los egresos
+        BigDecimal montoEsperadoTotal = montoInicial.add(montoVentas).subtract(totalEgresos);
 
         BigDecimal montoFinal;
         BigDecimal diferencia;
@@ -172,9 +196,9 @@ public class CajaServiceImpl implements CajaService {
         if (dto.montoEfectivo() != null) {
             // El cajero ingresó el efectivo físico contado en el cajón
             BigDecimal efectivoContado = dto.montoEfectivo();
-            // Total rendido = Efectivo físico contado + Ventas digitales registradas automáticamente
-            montoFinal = efectivoContado.add(desglose.totalDigital());
-            // La diferencia es el arqueo sobre el efectivo: efectivoContado - efectivoEsperado (fondo inicial + ventas efectivo)
+            // Total rendido = Efectivo físico contado + Ventas digitales netas de transferencias
+            montoFinal = efectivoContado.add(desglose.totalDigital().subtract(egresosDigital));
+            // La diferencia es el arqueo sobre el efectivo: efectivoContado - efectivoEsperado (fondo inicial + ventas efectivo - egresos efectivo)
             diferencia = efectivoContado.subtract(efectivoEsperado);
         } else if (dto.montoFinal() != null) {
             montoFinal = dto.montoFinal();
@@ -200,13 +224,30 @@ public class CajaServiceImpl implements CajaService {
 
         Caja guardada = cajaRepository.save(caja);
 
+        Map<String, Object> payloadCierre = new LinkedHashMap<>();
+        payloadCierre.put("cajaId", guardada.getId());
+        payloadCierre.put("montoInicial", guardada.getMontoInicial());
+        payloadCierre.put("montoFinal", guardada.getMontoFinal());
+        payloadCierre.put("montoVentas", guardada.getMontoVentas());
+        payloadCierre.put("diferencia", guardada.getDiferencia());
+        payloadCierre.put("fechaApertura", guardada.getFechaApertura() != null ? guardada.getFechaApertura().toString() : null);
+        payloadCierre.put("fechaCierre", guardada.getFechaCierre() != null ? guardada.getFechaCierre().toString() : null);
+        payloadCierre.put("cajero", guardada.getUsuario() != null ? guardada.getUsuario().getUsername() : "SISTEMA");
+        payloadCierre.put("totalEfectivo", desglose.totalEfectivo());
+        payloadCierre.put("totalDigital", desglose.totalDigital());
+        payloadCierre.put("totalEgresosEfectivo", egresosEfectivo);
+        payloadCierre.put("totalEgresosDigital", egresosDigital);
+        payloadCierre.put("totalEgresos", totalEgresos);
+        payloadCierre.put("cantidadVentas", desglose.cantidadVentas());
+        payloadCierre.put("observaciones", guardada.getObservaciones());
+
         blockchainService.registrarBloque(
                 getUsernameAutenticado(),
                 "CIERRE_CAJA",
-                "Cierre de caja ID: " + guardada.getId() + ". Final: $" + guardada.getMontoFinal() + ", Ventas: $" + guardada.getMontoVentas() + ", Diferencia: $" + guardada.getDiferencia(),
+                "Cierre de caja ID: " + guardada.getId() + ". Final: $" + guardada.getMontoFinal() + ", Ventas: $" + guardada.getMontoVentas() + ", Egresos: $" + totalEgresos + ", Diferencia: $" + guardada.getDiferencia(),
                 "CAJA",
                 guardada.getId().toString(),
-                guardada
+                payloadCierre
         );
 
         return cajaMapper.toDTO(
@@ -216,7 +257,10 @@ public class CajaServiceImpl implements CajaService {
                 desglose.totalCredito(),
                 desglose.totalTransferencia(),
                 desglose.totalDigital(),
-                desglose.cantidadVentas()
+                desglose.cantidadVentas(),
+                egresosEfectivo,
+                egresosDigital,
+                totalEgresos
         );
     }
 
@@ -236,14 +280,26 @@ public class CajaServiceImpl implements CajaService {
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
-                    0L
+                    0L,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO
             );
         }
 
         Caja caja = cajaOpt.get();
         DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), LocalDateTime.now());
+
+        BigDecimal egresosEfectivo = egresoCajaRepository.sumarPorCajaYTipoMedio(caja.getId(), TipoMedioEgreso.EFECTIVO);
+        if (egresosEfectivo == null) egresosEfectivo = BigDecimal.ZERO;
+
+        BigDecimal egresosDigital = egresoCajaRepository.sumarPorCajaYTipoMedio(caja.getId(), TipoMedioEgreso.TRANSFERENCIA);
+        if (egresosDigital == null) egresosDigital = BigDecimal.ZERO;
+
+        BigDecimal totalEgresos = egresosEfectivo.add(egresosDigital);
+
         BigDecimal montoInicial = caja.getMontoInicial() != null ? caja.getMontoInicial() : BigDecimal.ZERO;
-        BigDecimal montoEsperadoTotal = montoInicial.add(desglose.totalVentas());
+        BigDecimal montoEsperadoTotal = montoInicial.add(desglose.totalVentas()).subtract(totalEgresos);
 
         return cajaMapper.toEstadoActualDTO(
                 true,
@@ -255,7 +311,10 @@ public class CajaServiceImpl implements CajaService {
                 desglose.totalCredito(),
                 desglose.totalTransferencia(),
                 desglose.totalDigital(),
-                desglose.cantidadVentas()
+                desglose.cantidadVentas(),
+                egresosEfectivo,
+                egresosDigital,
+                totalEgresos
         );
     }
 
@@ -281,16 +340,22 @@ public class CajaServiceImpl implements CajaService {
     public Page<CajaResponseDTO> listarHistorial(Pageable pageable) {
         return cajaRepository.findAllByOrderByFechaAperturaDesc(pageable)
                 .map(caja -> {
-                    DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), caja.getFechaCierre());
-                    return cajaMapper.toDTO(
-                            caja,
-                            desglose.totalEfectivo(),
-                            desglose.totalDebito(),
-                            desglose.totalCredito(),
-                            desglose.totalTransferencia(),
-                            desglose.totalDigital(),
-                            desglose.cantidadVentas()
-                    );
+                    // Si el turno está en curso (abierto), calculamos las métricas dinámicas
+                    if (caja.getEstado() == EstadoCaja.ABIERTA) {
+                        DesgloseTurno desglose = calcularDesglose(caja.getFechaApertura(), LocalDateTime.now());
+                        return cajaMapper.toDTO(
+                                caja,
+                                desglose.totalEfectivo(),
+                                desglose.totalDebito(),
+                                desglose.totalCredito(),
+                                desglose.totalTransferencia(),
+                                desglose.totalDigital(),
+                                desglose.cantidadVentas()
+                        );
+                    }
+                    // Para turnos cerrados, sus totales ya están consolidados en la entidad;
+                    // se mapean directamente sin ejecutar consultas agregadas redundantes sobre ventas
+                    return cajaMapper.toDTO(caja);
                 });
     }
 }

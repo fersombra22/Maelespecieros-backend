@@ -1,5 +1,6 @@
 package com.maelespecieros.backend.repositories;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -25,4 +26,6 @@ public interface CajaRepository extends JpaRepository<Caja, Long> {
     @Override
     @EntityGraph(attributePaths = {"usuario"})
     Optional<Caja> findById(Long id);
+
+    List<Caja> findByHashIntegridadIsNull();
 }

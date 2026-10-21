@@ -178,6 +178,12 @@ public interface BlockchainService {
 
     );
 
+    java.util.List<com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse> verificarUltimosBloquesDetallado(
+
+            int cantidad
+
+    );
+
 
 
 
