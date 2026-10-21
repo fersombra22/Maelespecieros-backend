@@ -148,6 +148,5 @@ public interface ProductoRepository
             Integer stock
     );
 
-
-
+    List<Producto> findByHashIntegridadIsNull();
 }

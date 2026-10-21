@@ -18,6 +18,8 @@ public interface VentaService {
 
     byte[] generarComprobanteVenta(Long id);
 
+    void enviarComprobantePorEmail(Long id, String destinatario);
+
     Page<VentaResponse> listar(Pageable pageable);
 
     VentaResponse obtenerPorId(Long id);

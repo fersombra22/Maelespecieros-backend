@@ -82,12 +82,36 @@ public class Venta {
 
     public boolean esIntegro() {
         if (this.hashIntegridad == null) return false;
-        return this.hashIntegridad.equals(calcularHash());
+        String hashCalculado = calcularHash();
+        if (this.hashIntegridad.equals(hashCalculado)) return true;
+        return this.hashIntegridad.equals(calcularHashLegacy());
     }
 
     private String calcularHash() {
         try {
-            // Unimos los datos económicos vitales, normalizando la escala a 2 decimales
+            String subtotalStr = this.subtotal != null ? this.subtotal.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String descuentoStr = this.descuento != null ? this.descuento.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String totalStr = this.total != null ? this.total.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
+            String numeroVentaVital = this.numeroVenta != null ? this.numeroVenta : "";
+            String clienteVital = this.cliente != null && this.cliente.getId() != null ? this.cliente.getId().toString() : "CONSUMIDOR_FINAL";
+            String formaPagoVital = this.formaPago != null ? this.formaPago.name() : "EFECTIVO";
+
+            String datosVitales = numeroVentaVital + "|" + 
+                                  subtotalStr + "|" + 
+                                  descuentoStr + "|" +
+                                  totalStr + "|" + 
+                                  formaPagoVital + "|" +
+                                  (this.estado != null ? this.estado.name() : "") + "|" +
+                                  clienteVital;
+
+            return generarSha256(datosVitales);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al calcular la integridad de la venta", e);
+        }
+    }
+
+    private String calcularHashLegacy() {
+        try {
             String subtotalStr = this.subtotal != null ? this.subtotal.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
             String totalStr = this.total != null ? this.total.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() : "0.00";
             String numeroVentaVital = this.numeroVenta != null ? this.numeroVenta : "";
@@ -99,19 +123,23 @@ public class Venta {
                                   (this.estado != null ? this.estado.name() : "") + "|" +
                                   clienteVital;
 
-            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hashBytes = digest.digest((datosVitales + SECRET_KEY).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hashBytes) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
+            return generarSha256(datosVitales);
         } catch (Exception e) {
-            throw new RuntimeException("Error al calcular la integridad de la venta", e);
+            return "";
         }
+    }
+
+    private String generarSha256(String datosVitales) throws Exception {
+        java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+        byte[] hashBytes = digest.digest((datosVitales + SECRET_KEY).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hashBytes) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) hexString.append('0');
+            hexString.append(hex);
+        }
+        return hexString.toString();
     }
 
     @PrePersist

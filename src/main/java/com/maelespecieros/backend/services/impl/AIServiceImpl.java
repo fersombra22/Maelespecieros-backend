@@ -81,10 +81,11 @@ public class AIServiceImpl implements AIService {
 
     private List<com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse> obtenerAnomaliasDelSistema() {
         List<com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse> anomalias = new java.util.ArrayList<>();
-        anomalias.addAll(blockchainService.verificarCadenaDetallado());
+        // 1. Verificar últimos 100 bloques de blockchain (alta velocidad)
+        anomalias.addAll(blockchainService.verificarUltimosBloquesDetallado(100));
 
-        // Revisar Productos
-        for (Producto prod : productoRepository.findAll()) {
+        // 2. Revisar catálogo de Productos activos
+        for (Producto prod : productoRepository.findByActivoTrue()) {
             if (!prod.esIntegro()) {
                 anomalias.add(new com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse(
                     "PRODUCTO", prod.getCodigoProducto(), "Stock / Precio", "Firma Criptográfica Segura", "Datos Modificados Manualmente",
@@ -93,8 +94,12 @@ public class AIServiceImpl implements AIService {
             }
         }
 
-        // Revisar Ventas
-        for (com.maelespecieros.backend.entities.Venta venta : ventaRepository.findAll()) {
+        // 3. Revisar las 50 ventas más recientes para evitar OutOfMemory con histórico masivo
+        List<com.maelespecieros.backend.entities.Venta> ventasRecientes = ventaRepository.findAll(
+                org.springframework.data.domain.PageRequest.of(0, 50, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"))
+        ).getContent();
+
+        for (com.maelespecieros.backend.entities.Venta venta : ventasRecientes) {
             if (!venta.esIntegro()) {
                 anomalias.add(new com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse(
                     "VENTA", venta.getNumeroVenta(), "Totales / Estado", "Firma Criptográfica Segura", "Montos Alterados",
@@ -103,8 +108,12 @@ public class AIServiceImpl implements AIService {
             }
         }
 
-        // Revisar Cajas
-        for (com.maelespecieros.backend.entities.Caja caja : cajaRepository.findAll()) {
+        // 4. Revisar los 10 turnos de Caja más recientes
+        List<com.maelespecieros.backend.entities.Caja> cajasRecientes = cajaRepository.findAll(
+                org.springframework.data.domain.PageRequest.of(0, 10, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"))
+        ).getContent();
+
+        for (com.maelespecieros.backend.entities.Caja caja : cajasRecientes) {
             if (!caja.esIntegro()) {
                 anomalias.add(new com.maelespecieros.backend.dto.response.AnomaliaAuditoriaResponse(
                     "CAJA", "Turno #" + caja.getId(), "Montos / Estado", "Firma Criptográfica Segura", "Arqueo o Estado Alterado",

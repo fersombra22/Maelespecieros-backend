@@ -33,6 +33,8 @@ public record VentaResponse(
 
         String clienteNombreCompleto,
 
+        String clienteEmail,
+
         List<DetalleVentaResponse> detalles
 
 ) {
